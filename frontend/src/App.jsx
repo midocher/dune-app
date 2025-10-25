@@ -7,7 +7,8 @@ import {
 import { 
   LayoutDashboard, FolderKanban, FileText, Settings, Users, Building, MapPin, 
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
-  FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download
+  FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
+  Package, Wrench, UserCog, AlertCircle // NOUVELLES ICÔNES
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
@@ -32,8 +33,10 @@ const mockUsers = [
 ];
 
 const mockProjects = [
+  // MODIFIÉ: 'ing.suivi' (u3) est responsable de p1 et p2
   { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", id_responsable: 'u3', statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
   { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", id_responsable: 'u3', statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
+  // MODIFIÉ: 'admin.secondaire' (u2) est responsable de p3
   { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", id_responsable: 'u2', statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
 ];
 
@@ -91,31 +94,57 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useDarkMode();
 
   // État de l'application
-  const [projects, setProjects] = useState(mockProjects);
-  const [selectedProjectId, setSelectedProjectId] = useState(mockProjects[0]?.id || null);
+  // MODIFIÉ: Initialisation à vide. Sera rempli au login.
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
   
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
     return projects.find(p => p.id === selectedProjectId);
   }, [projects, selectedProjectId]);
   
+  // MODIFIÉ: Logique de login complète
   const handleLogin = (username, password) => {
-    // Simulation d'une API d'authentification
+    // 1. Authentification de l'utilisateur
     const user = mockUsers.find(u => u.username === username && u.password === password);
+    
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
       setCurrentPage('dashboard');
+
+      // 2. Filtrage des projets basé sur le rôle
+      let userProjects = [];
+      if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
+        // Les admins voient TOUS les projets
+        userProjects = mockProjects;
+      } else if (user.role === 'Ingénieur de suivi') {
+        // Les ingénieurs ne voient que LEURS projets
+        userProjects = mockProjects.filter(p => p.id_responsable === user.id);
+      }
+      // Les visiteurs pourraient avoir une logique différente (ex: projets avec acces_visiteur = true)
+
+      setProjects(userProjects);
+
+      // 3. Sélectionner le premier projet de la liste filtrée par défaut
+      if (userProjects.length > 0) {
+        setSelectedProjectId(userProjects[0].id);
+      } else {
+        setSelectedProjectId(null);
+      }
+
     } else {
-      // Gérer l'échec de la connexion (par exemple, afficher un message)
       console.error("Identifiants incorrects");
     }
   };
 
+  // MODIFIÉ: Déconnexion complète
   const handleLogout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
     setCurrentPage('login');
+    setProjects([]); // Vider les projets
+    setSelectedProjectId(null); // Vider la sélection
   };
 
   if (currentPage === 'login') {
@@ -139,7 +168,7 @@ export default function App() {
           isDarkMode={isDarkMode} 
           setIsDarkMode={setIsDarkMode} 
           currentUser={currentUser}
-          projects={projects}
+          projects={projects} // Transmission de la liste de projets filtrée
           selectedProjectId={selectedProjectId}
           setSelectedProjectId={setSelectedProjectId}
         />
@@ -150,7 +179,12 @@ export default function App() {
             page={currentPage} 
             currentUser={currentUser} 
             selectedProject={selectedProject}
-            isDarkMode={isDarkMode} // <-- CORRECTION : Ajout de la variable isDarkMode
+            isDarkMode={isDarkMode}
+            // MODIFIÉ: Transmission de toutes les données pour les sous-pages
+            mockBlocks={mockBlocks}
+            mockLots={mockLots}
+            mockPlans={mockPlans}
+            mockUsers={mockUsers}
           />
         </main>
       </div>
@@ -253,8 +287,9 @@ const Sidebar = ({ currentPage, setCurrentPage, handleLogout, currentUser }) => 
         {/* Section spécifique au projet */}
         <div className="pt-4 mt-4 border-t dark:border-gray-700">
           <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Gestion du projet</h3>
-          <NavItem icon={Layers} label="Blocs" pageName="blocks" />
-          <NavItem icon={Home} label="Lots & Sous-Lots" pageName="lots" />
+          {/* MODIFIÉ: Icônes corrigées */}
+          <NavItem icon={Package} label="Blocs" pageName="blocks" />
+          <NavItem icon={Layers} label="Lots & Sous-Lots" pageName="lots" />
           <NavItem icon={FileText} label="Plans" pageName="plans" />
           <NavItem icon={FileDiff} label="Révisions" pageName="revisions" />
         </div>
@@ -263,8 +298,8 @@ const Sidebar = ({ currentPage, setCurrentPage, handleLogout, currentUser }) => 
         {isAdmin && (
           <div className="pt-4 mt-4 border-t dark:border-gray-700">
             <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Administration</h3>
-            <NavItem icon={Users} label="Utilisateurs" pageName="users" />
-            <NavItem icon={Settings} label="Paramètres" pageName="settings" />
+            <NavItem icon={UserCog} label="Utilisateurs" pageName="users" />
+            <NavItem icon={Wrench} label="Paramètres" pageName="settings" />
           </div>
         )}
       </nav>
@@ -287,17 +322,31 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
     <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
       {/* Sélecteur de projet */}
       <div className="flex items-center">
-        <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
-        <select
-          id="project-select"
-          value={selectedProjectId || ''}
-          onChange={(e) => setSelectedProjectId(e.target.value)}
-          className="w-64 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-        >
-          {projects.map(p => (
-            <option key={p.id} value={p.id}>{p.nom} ({p.abreviation})</option>
-          ))}
-        </select>
+        {/* MODIFIÉ: Affiche le sélecteur seulement s'il y a plus d'un projet */}
+        {projects.length > 1 ? (
+          <>
+            <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
+            <select
+              id="project-select"
+              value={selectedProjectId || ''}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="w-64 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.nom} ({p.abreviation})</option>
+              ))}
+            </select>
+          </>
+        ) : projects.length === 1 ? (
+          // Affiche le nom du projet s'il n'y en a qu'un
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Projet Actif :</span>
+            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{projects[0].nom}</span>
+          </div>
+        ) : (
+          // N'affiche rien si aucun projet n'est assigné
+          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Aucun projet assigné</span>
+        )}
       </div>
 
       {/* Icônes et Profil */}
@@ -322,18 +371,43 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
   );
 };
 
-// Routeur de contenu de page
-const PageContent = ({ page, currentUser, selectedProject, isDarkMode }) => { // <-- CORRECTION: Réception de isDarkMode
+// MODIFIÉ: Routeur de contenu de page complet
+const PageContent = ({ 
+  page, currentUser, selectedProject, isDarkMode, 
+  mockBlocks, mockLots, mockPlans, mockUsers 
+}) => {
+  
+  // Composant générique pour les pages en construction
+  const PlaceholderPage = ({ title, icon }) => (
+    <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+      {React.createElement(icon, { className: "w-16 h-16 mb-4" })}
+      <h1 className="text-2xl font-bold mb-2">{title}</h1>
+      <p>Cette page est en cours de construction.</p>
+    </div>
+  );
+
   switch (page) {
     case 'dashboard':
-      return <DashboardPage isDarkMode={isDarkMode} />; // <-- CORRECTION: Transmission de isDarkMode
+      return <DashboardPage isDarkMode={isDarkMode} />;
     case 'projects':
-      return <ProjectsPage />;
+      return <ProjectsPage />; // Note: La page Projets gère la liste complète, pas seulement le projet sélectionné
     case 'plans':
-      return <PlansPage selectedProject={selectedProject} />;
-    // ... autres cas pour 'blocks', 'lots', 'revisions', 'users', 'settings'
+      return <PlansPage selectedProject={selectedProject} mockPlans={mockPlans} mockBlocks={mockBlocks} mockLots={mockLots} />;
+    
+    // NOUVEAU: Ajout des autres pages
+    case 'blocks':
+      return <BlocksPage selectedProject={selectedProject} mockBlocks={mockBlocks} />;
+    case 'lots':
+      return <LotsPage selectedProject={selectedProject} mockLots={mockLots} />;
+    case 'revisions':
+      return <RevisionsPage selectedProject={selectedProject} mockPlans={mockPlans} />;
+    case 'users':
+      return <UsersPage currentUser={currentUser} mockUsers={mockUsers} />;
+    case 'settings':
+      return <PlaceholderPage title="Paramètres" icon={Wrench} />;
+      
     default:
-      return <DashboardPage isDarkMode={isDarkMode} />; // <-- CORRECTION: Transmission de isDarkMode
+      return <DashboardPage isDarkMode={isDarkMode} />;
   }
 };
 
@@ -341,7 +415,7 @@ const PageContent = ({ page, currentUser, selectedProject, isDarkMode }) => { //
 // --- Composants de Page (Exemples) ---
 
 // Tableau de bord
-const DashboardPage = ({ isDarkMode }) => { // <-- CORRECTION: Réception de isDarkMode
+const DashboardPage = ({ isDarkMode }) => {
   const pieData = [
     { name: 'Approuvés CTC', value: 40, color: '#10B981' }, // green-500
     { name: 'En cours', value: 30, color: '#3B82F6' }, // blue-500
@@ -484,6 +558,7 @@ const ProjectsPage = () => {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {/* MODIFIÉ: Utilise la liste complète mockProjects ici, car c'est la page de *gestion* de tous les projets */}
             {mockProjects.filter(p => filter ? p.statut === filter : true).map((project) => (
               <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -517,7 +592,7 @@ const ProjectsPage = () => {
 };
 
 // Page Plans
-const PlansPage = ({ selectedProject }) => {
+const PlansPage = ({ selectedProject, mockPlans, mockBlocks, mockLots }) => { // MODIFIÉ: réception des données
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
@@ -527,7 +602,7 @@ const PlansPage = ({ selectedProject }) => {
   const getStatusIcon = (statut) => {
     switch (statut) {
       case 'Approuvé CTC': return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case "En cours d'approbation": return <Clock className="w-5 h-5 text-yellow-500" />; // <-- CORRECTION ICI
+      case "En cours d'approbation": return <Clock className="w-5 h-5 text-yellow-500" />;
       case 'Déposé au MO': return <FileText className="w-5 h-5 text-blue-500" />;
       case 'Obsolète': return <XCircle className="w-5 h-5 text-red-500" />;
       default: return <Clock className="w-5 h-5 text-gray-500" />;
@@ -580,7 +655,7 @@ const PlansPage = ({ selectedProject }) => {
                   <div className="text-sm font-bold text-gray-900 dark:text-gray-100">{plan.reference}</div>
                   <div className="text-sm text-blue-600 dark:text-blue-400">{plan.fichier_pdf}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-Nrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   <div><span className="font-semibold">Bloc:</span> {mockBlocks.find(b => b.id === plan.id_bloc)?.abreviation || 'N/A'}</div>
                   <div><span className="font-semibold">Lot:</span> {mockLots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
@@ -602,3 +677,219 @@ const PlansPage = ({ selectedProject }) => {
     </div>
   );
 };
+
+// NOUVEAU: Page Blocs
+const BlocksPage = ({ selectedProject, mockBlocks }) => {
+  if (!selectedProject) {
+    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  }
+
+  const projectBlocks = mockBlocks.filter(b => b.id_projet === selectedProject.id);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Blocs pour : {selectedProject.nom}</h1>
+        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+          <Plus className="w-5 h-5 mr-2" />
+          Nouveau Bloc
+        </button>
+      </div>
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nom</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Abréviation</th>
+              <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {projectBlocks.map((block) => (
+              <tr key={block.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{block.nom}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{block.abreviation}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <button className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
+                  <button className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// NOUVEAU: Page Lots
+const LotsPage = ({ selectedProject, mockLots }) => {
+  if (!selectedProject) {
+    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  }
+
+  const projectLots = mockLots.filter(l => l.id_projet === selectedProject.id);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Lots & Sous-Lots pour : {selectedProject.nom}</h1>
+        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+          <Plus className="w-5 h-5 mr-2" />
+          Nouveau Lot
+        </button>
+      </div>
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Lot</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Approbation CTC</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Sous-Lots</th>
+              <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {projectLots.map((lot) => (
+              <tr key={lot.id}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{lot.nom}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{lot.abreviation}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    lot.ctc_approbation 
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                  }`}>
+                    {lot.ctc_approbation ? 'Oui' : 'Non'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {lot.sousLots.map(sl => sl.abreviation).join(', ') || 'N/A'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <button className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
+                  <button className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// NOUVEAU: Page Révisions
+const RevisionsPage = ({ selectedProject, mockPlans }) => {
+  if (!selectedProject) {
+    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  }
+
+  // Aplatir l'historique de tous les plans du projet
+  const allRevisions = mockPlans
+    .filter(p => p.id_projet === selectedProject.id)
+    .flatMap(plan => 
+      plan.historique.map(rev => ({
+        ...rev,
+        planReference: plan.reference,
+        planTitre: plan.titre,
+      }))
+    )
+    .sort((a, b) => new Date(b.date) - new Date(a.date)); // Trier par date, du plus récent au plus ancien
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Historique des Révisions pour : {selectedProject.nom}</h1>
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Plan</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Version</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Utilisateur</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Commentaire</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {allRevisions.map((rev, index) => (
+              <tr key={index}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.date}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{rev.planReference}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{rev.planTitre}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{rev.version}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.utilisateur}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.commentaire}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// NOUVEAU: Page Utilisateurs
+const UsersPage = ({ currentUser, mockUsers }) => {
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-red-500 dark:text-red-400">
+        <AlertCircle className="w-16 h-16 mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Accès non autorisé</h1>
+        <p>Vous n'avez pas les droits nécessaires pour accéder à cette page.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Utilisateurs</h1>
+        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+          <Plus className="w-5 h-5 mr-2" />
+          Nouvel Utilisateur
+        </button>
+      </div>
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Identifiant</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Rôle</th>
+              <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {mockUsers.map((user) => (
+              <tr key={user.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{user.username}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.role}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <button 
+                    className="text-blue-600 dark:text-blue-400 disabled:text-gray-400"
+                    disabled={user.role === 'Gérant principal'} // On ne peut pas modifier le gérant principal
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button 
+                    className="text-red-600 dark:text-red-400 disabled:text-gray-400"
+                    disabled={user.role === 'Gérant principal'} // On ne peut pas supprimer le gérant principal
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
