@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
   Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye, 
-  ArrowRight, ShieldCheck, ExternalLink // NOUVELLE ICÔNE
+  ArrowRight, ShieldCheck, ExternalLink, Upload // NOUVELLE ICÔNE
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
@@ -68,6 +68,14 @@ const mockPlansInit = [
 ];
 // --- Fin des Données de Simulation ---
 
+// --- Fonctions Utilitaires ---
+// NOUVEAU: Génération d'abréviation
+const generateAbbreviation = (name) => {
+  if (!name) return '';
+  // Prend les initiales des mots importants (plus de 2 lettres), max 4 lettres
+  const words = name.split(' ').filter(word => word.length > 2);
+  return words.map(word => word[0]).join('').substring(0, 4).toUpperCase();
+};
 
 // Hook pour le mode sombre
 const useDarkMode = () => {
@@ -162,7 +170,13 @@ export default function App() {
       setUserProjects(filteredProjects);
       setSelectedProjectId(null); // Force la sélection
       
-      navigate('/select-project'); // Rediriger vers la sélection de projet
+      // NOUVEAU: Redirige vers /select-project OU /admin/users si admin
+      if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
+         // Optionnel: Aller directement à l'admin si pas de projets ? Pour l'instant, sélection
+         navigate('/select-project'); 
+      } else {
+         navigate('/select-project');
+      }
     } else {
       console.error("Identifiants incorrects");
       alert("Identifiant ou mot de passe incorrect."); 
@@ -205,7 +219,6 @@ export default function App() {
   };
 
   return (
-    // CORRECTION: Le div racine gère min-h-screen, les layouts internes géreront h-screen
     <div className={`bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen`}> 
       <Routes>
         <Route
@@ -224,6 +237,11 @@ export default function App() {
                 currentUser={currentUser}
                 isDarkMode={isDarkMode}
                 setIsDarkMode={setIsDarkMode}
+                // NOUVEAU: Passer les fonctions CUD projet pour les admins
+                isAdmin={currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire'}
+                allProjects={allProjects}
+                setAllProjects={setAllProjects}
+                allUsers={allUsers}
               />
             ) : (
               <Navigate to="/login" replace />
@@ -242,7 +260,6 @@ export default function App() {
                 userProjects={userProjects}
                 setSelectedProjectId={setSelectedProjectId}
               >
-                {/* CORRECTION: Le layout est maintenant à l'intérieur du wrapper */}
                 <MainLayout
                   isDarkMode={isDarkMode}
                   setIsDarkMode={setIsDarkMode}
@@ -268,7 +285,6 @@ export default function App() {
                <AdminLayoutWrapper
                  currentUser={currentUser}
                >
-                 {/* CORRECTION: Le layout est maintenant à l'intérieur du wrapper */}
                  <AdminLayout 
                    currentUser={currentUser} 
                    handleLogout={handleLogout} 
@@ -321,7 +337,6 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
     return <div className="flex items-center justify-center h-screen">Chargement du projet...</div>;
   }
 
-  // CORRECTION: Wrapper applique h-screen ici
   return <div className="h-screen">{children}</div>;
 };
 
@@ -331,21 +346,79 @@ const AdminLayoutWrapper = ({ children, currentUser }) => {
   if (!isAdmin) {
     return <Navigate to="/select-project" replace />;
   }
-  // CORRECTION: Wrapper applique h-screen ici
   return <div className="h-screen">{children}</div>;
 };
 
 
 // --- Page de Sélection de Projet ---
-// ... (Identique)
-const ProjectSelectionPage = ({ userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode }) => {
+// MODIFIÉ: Intègre la gestion de projets (CUD) pour les admins
+const ProjectSelectionPage = ({ 
+  userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode,
+  isAdmin, allProjects, setAllProjects, allUsers // Props CUD
+}) => {
+  const [filter, setFilter] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
+  
+  // La liste affichée dépend toujours du rôle, même si les admins peuvent agir sur `allProjects`
+  const projectsToDisplay = isAdmin ? allProjects : userProjects; 
+  
+  const getStatusColor = (statut) => {
+    switch (statut) {
+      case 'en étude': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'en exécution': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+      case 'achevé': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'suspendu': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    }
+  };
+
+  const openModalToEdit = (project) => {
+    setEditingProject(project);
+    setIsModalOpen(true);
+  };
+
+  const openModalToCreate = () => {
+    setEditingProject(null);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingProject(null);
+  };
+
+  const handleSave = (projectData) => {
+    if (editingProject) {
+      // Modification
+      setAllProjects(allProjects.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
+    } else {
+      // Création
+      const newProject = {
+        ...projectData,
+        id: 'p' + Date.now(), 
+        date_creation: new Date().toISOString().split('T')[0], 
+      };
+      setAllProjects([...allProjects, newProject]);
+    }
+    closeModal();
+    // TODO: Mettre à jour `userProjects` si l'utilisateur actuel est affecté/désaffecté
+  };
+
+  const handleDelete = (projectId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible et supprimera aussi ses blocs, lots et plans.")) {
+      setAllProjects(allProjects.filter(p => p.id !== projectId));
+      // TODO: Supprimer aussi les blocs, lots, plans associés dans les autres états
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen">
-      {/* Header simplifié */}
+      {/* Header */}
       <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
          <div className="flex items-center">
             <Building className="w-10 h-10 text-blue-600 dark:text-blue-400" />
-            <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE - Sélection</span>
+            <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE - Projets</span>
          </div>
          <div className="flex items-center space-x-4">
             <button
@@ -374,68 +447,140 @@ const ProjectSelectionPage = ({ userProjects, onSelectProject, handleLogout, cur
       </header>
       {/* Contenu */}
       <main className="flex-1 overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">Choisissez un projet à ouvrir</h1>
-        {userProjects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {userProjects.map(project => (
-              <div key={project.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 flex flex-col justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{project.nom}</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{project.abreviation}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{project.commune}, {project.wilaya}</p>
-                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    project.statut === 'en étude' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                    project.statut === 'en exécution' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                    project.statut === 'achevé' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                  }`}>
-                    {project.statut}
-                  </span>
-                </div>
-                <button 
-                  onClick={() => onSelectProject(project.id)}
-                  className="mt-6 w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-                >
-                  Ouvrir <ArrowRight className="w-4 h-4 ml-2" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-center text-gray-500 dark:text-gray-400">Aucun projet ne vous est actuellement assigné.</p>
-        )}
+         <div className="flex justify-between items-center mb-6">
+           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+             {isAdmin ? 'Gestion des Projets' : 'Sélectionnez un projet'}
+           </h1>
+           {isAdmin && (
+             <button 
+               onClick={openModalToCreate}
+               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+             >
+               <Plus className="w-5 h-5 mr-2" />
+               Nouveau Projet
+             </button>
+           )}
+         </div>
+         {/* Barre Filtre/Recherche */}
+         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4 mb-6">
+           <div className="flex-1 relative">
+             <input type="text" placeholder="Rechercher..."
+               className="w-full pl-10 pr-4 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+             <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+           </div>
+           <select value={filter} onChange={(e) => setFilter(e.target.value)}
+             className="pl-3 pr-10 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+             <option value="">Tous les statuts</option>
+             <option value="en étude">En étude</option>
+             <option value="en exécution">En exécution</option>
+             <option value="achevé">Achevé</option>
+             <option value="suspendu">Suspendu</option>
+           </select>
+           {isAdmin && (
+             <button onClick={() => alert("Exportation bientôt disponible.")}
+               className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+               <Download className="w-5 h-5 mr-2" /> Exporter
+             </button>
+           )}
+         </div>
+         
+         {/* Liste des Projets (Tableau) */}
+         {projectsToDisplay.length > 0 ? (
+           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+               <thead className="bg-gray-50 dark:bg-gray-700">
+                 <tr>
+                   <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Projet</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Localisation</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Responsable</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Statut</th>
+                   <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                 </tr>
+               </thead>
+               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                 {projectsToDisplay.filter(p => filter ? p.statut === filter : true).map((project) => (
+                   <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                     <td className="px-6 py-4 whitespace-nowrap">
+                       <div className="text-sm font-medium dark:text-gray-100">{project.nom}</div>
+                       <div className="text-sm dark:text-gray-400">{project.abreviation}</div>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
+                       {project.commune}, {project.wilaya}
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
+                       {allUsers.find(u => u.id === project.id_responsable)?.username || 'N/A'}
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap">
+                       <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(project.statut)}`}>
+                         {project.statut}
+                       </span>
+                     </td>
+                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                       <button onClick={() => onSelectProject(project.id)} title="Ouvrir"
+                         className="p-1.5 text-white bg-blue-600 rounded hover:bg-blue-700">
+                         <Home className="w-4 h-4" />
+                       </button>
+                       {isAdmin && (
+                         <>
+                           <button onClick={() => openModalToEdit(project)} title="Modifier"
+                             className="p-1.5 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-gray-700">
+                             <Edit2 className="w-4 h-4" />
+                           </button>
+                           <button onClick={() => handleDelete(project.id)} title="Supprimer"
+                             className="p-1.5 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-gray-700">
+                             <Trash2 className="w-4 h-4" />
+                           </button>
+                         </>
+                       )}
+                     </td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
+           </div>
+         ) : (
+           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">Aucun projet trouvé {isAdmin ? '' : 'pour cet utilisateur'}.</p>
+         )}
+         
+         {/* Modal Projet */}
+         <Modal isOpen={isModalOpen} onClose={closeModal} title={editingProject ? "Modifier le Projet" : "Créer un Projet"}>
+           <ProjectForm 
+             project={editingProject} 
+             onSave={handleSave} 
+             onCancel={closeModal}
+             allUsers={allUsers}
+             currentUser={currentUser}
+           />
+         </Modal>
       </main>
     </div>
   );
 };
 
+
 // --- Composant Layout Principal ---
-// CORRECTION: Structure flexbox corrigée
 const MainLayout = ({ 
   isDarkMode, setIsDarkMode, currentUser, handleLogout, 
   userProjects, selectedProjectId, setSelectedProjectId,
-  appData // Contient maintenant selectedProject détaillé
+  appData 
 }) => {
   const { projectId } = useParams(); 
-  const { selectedProject } = appData; // Récupère le projet déjà validé par le wrapper
+  const { selectedProject } = appData; 
 
-  // Prépare les props à passer aux pages spécifiques du projet
+  // Prépare les props à passer aux pages
   const pageProps = { ...appData, isDarkMode, currentUser, selectedProject, selectedProjectId, setSelectedProjectId };
           
-  // Normalement redondant grâce au wrapper, mais sécurité supplémentaire
   if (!selectedProject || selectedProject.id !== projectId) {
-      return <div className="flex items-center justify-center h-screen">Erreur: Projet invalide ou non chargé.</div>;
+      return <div className="flex items-center justify-center h-screen">Erreur: Projet invalide.</div>;
   }
 
   return (
-    // CORRECTION: 'flex' appliqué ici pour Sidebar + Contenu
-    <div className="flex h-full"> {/* h-full prend la hauteur du wrapper */}
+    <div className="flex h-full"> 
       <Sidebar 
         handleLogout={handleLogout}
         currentUser={currentUser}
         projectId={projectId} 
       />
-      {/* CORRECTION: Conteneur pour Header + Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           isDarkMode={isDarkMode} 
@@ -445,7 +590,6 @@ const MainLayout = ({
           selectedProjectId={selectedProjectId}
           setSelectedProjectId={setSelectedProjectId} 
         />
-        {/* CORRECTION: Main prend le reste de l'espace et permet le défilement interne */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
           <Routes>
              <Route path="dashboard" element={<DashboardPage {...pageProps} />} />
@@ -453,7 +597,6 @@ const MainLayout = ({
              <Route path="blocks" element={<BlocksPage {...pageProps} />} />
              <Route path="lots" element={<LotsPage {...pageProps} />} />
              <Route path="revisions" element={<RevisionsPage {...pageProps} />} />
-             {/* Note: Les routes Admin ne sont plus accessibles via ce layout */}
              
              <Route index element={<Navigate to="dashboard" replace />} />
              <Route path="*" element={<Navigate to="dashboard" replace />} /> 
@@ -465,20 +608,17 @@ const MainLayout = ({
 };
 
 // --- Layout Admin ---
-// CORRECTION: Structure flexbox corrigée
 const AdminLayout = ({ currentUser, handleLogout, appData, isDarkMode, setIsDarkMode }) => {
    const pageProps = { ...appData, isDarkMode, currentUser }; 
-   const navigate = useNavigate(); // Ajout pour le dropdown Header
+   const navigate = useNavigate(); 
 
    return (
-     // CORRECTION: 'flex' appliqué ici pour Sidebar + Contenu
-     <div className="flex h-full"> {/* h-full prend la hauteur du wrapper */}
+     <div className="flex h-full"> 
          <Sidebar 
            handleLogout={handleLogout}
            currentUser={currentUser}
-           projectId={null} // Pas de projet actif pour l'admin
+           projectId={null} 
          />
-         {/* CORRECTION: Conteneur pour Header + Main */}
          <div className="flex-1 flex flex-col overflow-hidden">
             <Header 
               isDarkMode={isDarkMode} 
@@ -486,10 +626,8 @@ const AdminLayout = ({ currentUser, handleLogout, appData, isDarkMode, setIsDark
               currentUser={currentUser}
               userProjects={[]} 
               selectedProjectId={null}
-              // CORRECTION: Le dropdown dans l'admin renvoie à la sélection de projet
               setSelectedProjectId={() => navigate('/select-project')} 
             />
-           {/* CORRECTION: Main prend le reste de l'espace et permet le défilement interne */}
            <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
              <Routes>
                 <Route path="users" element={<UsersPage {...pageProps} />} /> 
@@ -503,9 +641,7 @@ const AdminLayout = ({ currentUser, handleLogout, appData, isDarkMode, setIsDark
    );
 };
 
-/* --- Le reste des composants (LoginScreen, Sidebar, Header (modifié), Pages, Modals, Forms) --- */
-
-// --- Composants de l'interface ---
+/* --- Le reste des composants --- */
 
 // Écran de connexion
 // ... (Identique)
@@ -571,20 +707,16 @@ const LoginScreen = ({ onLogin, isDarkMode }) => {
 };
 
 // Barre latérale
-// ... (Identique, sauf '/admin/...' pour liens admin)
+// ... (Identique)
 const Sidebar = ({ handleLogout, currentUser, projectId }) => { 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const location = useLocation(); 
 
-  const projectUrl = (path) => projectId ? `/project/${projectId}/${path}` : '#'; // Retourne '#' si pas de projectId
+  const projectUrl = (path) => projectId ? `/project/${projectId}/${path}` : '#'; 
   const adminUrl = (path) => `/admin/${path}`; 
 
   const NavItem = ({ icon, label, to, disabled = false }) => {
-    // isActive est vrai si le chemin actuel commence exactement par 'to'
-    // Exception: /select-project qui est toujours actif s'il correspond
     const isActive = to === '/select-project' ? location.pathname === to : location.pathname.startsWith(to) && to !== '/select-project'; 
-    
-    // Un lien projet est désactivé si projectId est null ET ce n'est PAS un lien admin
     const isDisabled = !projectId && !to.startsWith('/admin') && to !== '/select-project';
 
     return (
@@ -657,23 +789,21 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
 // ... (Identique)
 const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selectedProjectId, setSelectedProjectId }) => {
   const navigate = useNavigate();
-  const location = useLocation(); // Pour vérifier si on est dans /admin
+  const location = useLocation(); 
 
   const handleProjectSwitch = (e) => {
     const newProjectId = e.target.value;
     if (newProjectId) {
       navigate(`/project/${newProjectId}/dashboard`); 
     } else {
-      // Si on choisit "-- Aucun --", on retourne à la sélection
       navigate('/select-project'); 
     }
   };
 
   return (
     <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0"> 
-      {/* Sélecteur de projet ou Titre Admin */}
       <div className="flex items-center">
-        {location.pathname.startsWith('/project/') && selectedProjectId && userProjects.length > 0 ? ( // Affiche si dans un projet ET projet sélectionné
+        {location.pathname.startsWith('/project/') && selectedProjectId && userProjects.length > 0 ? ( 
           <>
             <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
             <select
@@ -688,14 +818,13 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selected
               ))}
             </select>
           </>
-        ) : location.pathname.startsWith('/admin') ? ( // Affiche si dans admin
+        ) : location.pathname.startsWith('/admin') ? ( 
            <span className="text-xl font-semibold text-gray-800 dark:text-gray-100">Administration</span> 
-        ): ( // Cas par défaut (ex: /select-project ou erreur)
+        ): ( 
            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Sélectionnez un projet</span>
         )}
       </div>
 
-      {/* Icônes et Profil */}
       <div className="flex items-center space-x-4">
         <button
           onClick={() => setIsDarkMode(!isDarkMode)}
@@ -841,219 +970,36 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers, allBlo
   );
 };
 
-// --- Les autres composants de Page (ProjectsPage, PlansPage, BlocksPage, LotsPage, RevisionsPage, UsersPage) ---
-// --- Formulaires (ProjectForm, BlockForm, LotForm, UserForm) ---
-// --- Modal ---
-// --- RESTENT IDENTIQUES À LA VERSION PRÉCÉDENTE ---
-
-// Page Projets (avec CUD)
-// ... (Identique)
-const ProjectsPage = ({ currentUser, userProjects, allProjects, setAllProjects, allUsers, setSelectedProjectId }) => {
-  const [filter, setFilter] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState(null);
-  
-  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
-  const navigate = useNavigate();
-
-  // Les admins voient tout, les autres ne voient que leurs projets filtrés
-  const projectsToDisplay = isAdmin ? allProjects : userProjects;
-  
-  const getStatusColor = (statut) => {
-    switch (statut) {
-      case 'en étude': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'en exécution': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'achevé': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'suspendu': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-    }
-  };
-
-  const openModalToEdit = (project) => {
-    setEditingProject(project);
-    setIsModalOpen(true);
-  };
-
-  const openModalToCreate = () => {
-    setEditingProject(null);
-    setIsModalOpen(true);
-  };
-  
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingProject(null);
-  };
-
-  const handleSave = (projectData) => {
-    if (editingProject) {
-      // Modification
-      setAllProjects(allProjects.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
-    } else {
-      // Création
-      const newProject = {
-        ...projectData,
-        id: 'p' + Date.now(), // ID unique simple
-        date_creation: new Date().toISOString().split('T')[0], // Date du jour
-      };
-      setAllProjects([...allProjects, newProject]);
-    }
-    closeModal();
-    // TODO: Mettre à jour la liste `userProjects` si un ingénieur se crée un projet
-  };
-
-  const handleDelete = (projectId) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.")) {
-      setAllProjects(allProjects.filter(p => p.id !== projectId));
-      // TODO: Supprimer aussi les blocs, lots, plans associés
-    }
-  };
-  
-  const handleSelectProject = (projectId) => {
-    setSelectedProjectId(projectId);
-    navigate(`/project/${projectId}/dashboard`);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Sélection des Projets</h1>
-        {isAdmin && (
-          <button 
-            onClick={openModalToCreate}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Nouveau Projet
-          </button>
-        )}
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4">
-        <div className="flex-1 relative">
-          <input 
-            type="text" 
-            placeholder="Rechercher un projet..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        </div>
-        <select 
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="pl-3 pr-10 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Tous les statuts</option>
-          <option value="en étude">En étude</option>
-          <option value="en exécution">En exécution</option>
-          <option value="achevé">Achevé</option>
-          <option value="suspendu">Suspendu</option>
-        </select>
-        {isAdmin && (
-          <button 
-            onClick={() => alert("L'exportation sera ajoutée prochainement.")}
-            className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            <Download className="w-5 h-5 mr-2" />
-            Exporter (PDF/Excel)
-          </button>
-        )}
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nom du Projet</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Localisation</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Responsable</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
-              <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {projectsToDisplay.filter(p => filter ? p.statut === filter : true).map((project) => (
-              <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nom}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">{project.abreviation}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  <div>{project.commune}, {project.wilaya}</div>
-                  <div className_="text-xs text-gray-400">{project.adresse}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {allUsers.find(u => u.id === project.id_responsable)?.username || 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(project.statut)}`}>
-                    {project.statut}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button 
-                    onClick={() => handleSelectProject(project.id)}
-                    title="Ouvrir le projet"
-                    className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
-                  >
-                    <Home className="w-4 h-4" />
-                  </button>
-                  {isAdmin && (
-                    <>
-                      <button 
-                        onClick={() => openModalToEdit(project)}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                      >
-                        <Edit2 className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(project.id)}
-                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={closeModal} 
-        title={editingProject ? "Modifier le Projet" : "Créer un Nouveau Projet"}
-      >
-        <ProjectForm 
-          project={editingProject} 
-          onSave={handleSave} 
-          onCancel={closeModal}
-          allUsers={allUsers}
-          currentUser={currentUser}
-        />
-      </Modal>
-    </div>
-  );
-};
-
 // Formulaire Projet
-// ... (Identique)
+// ... (Identique, avec génération d'abréviation)
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
-  const [abreviation, setAbreviation] = useState(project ? project.abreviation : '');
+  // MODIFIÉ: Initialise l'abréviation auto si nouveau projet
+  const [abreviation, setAbreviation] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
   const [wilaya, setWilaya] = useState(project ? project.wilaya : '');
   const [daira, setDaira] = useState(project ? project.daira : '');
   const [commune, setCommune] = useState(project ? project.commune : '');
   const [adresse, setAdresse] = useState(project ? project.adresse : '');
   const [statut, setStatut] = useState(project ? project.statut : 'en étude');
-  const [idResponsable, setIdResponsable] = useState(project ? project.id_responsable : currentUser.id); // Par défaut, l'ingénieur qui crée
+  const [idResponsable, setIdResponsable] = useState(project ? project.id_responsable : currentUser.id); 
   
   const [dairas, setDairas] = useState([]);
   const [communes, setCommunes] = useState([]);
+  const [autoAbrev, setAutoAbrev] = useState(project ? project.abreviation : generateAbbreviation(nom)); // Stocke l'abréviation auto
   
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
-  const ingenieurs = allUsers.filter(u => u.role.includes('Ingénieur') || u.role.includes('Admin')); // Simplifié
+  const ingenieurs = allUsers.filter(u => u.role.includes('Ingénieur') || u.role.includes('Admin'));
+
+  // Logique pour màj auto de l'abréviation
+  useEffect(() => {
+    const newAbrev = generateAbbreviation(nom);
+    // Si l'abréviation actuelle est vide OU si elle correspondait à l'ancienne auto-générée
+    if (!abreviation || abreviation === autoAbrev) {
+      setAbreviation(newAbrev);
+    }
+    setAutoAbrev(newAbrev); // Met à jour l'abréviation auto pour la prochaine comparaison
+  }, [nom]); // Déclenché seulement quand 'nom' change
+
 
   useEffect(() => {
     if (wilaya && algeriaLocations[wilaya]) {
@@ -1061,9 +1007,11 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setDairas([]);
     }
-    setDaira('');
-    setCommune('');
-  }, [wilaya]);
+    // Si on n'édite pas OU si la daira du projet n'est pas dans la nouvelle liste
+    if (!project || (project && project.wilaya !== wilaya)) {
+        setDaira('');
+    }
+  }, [wilaya, project]); // Ajout project aux dépendances
 
   useEffect(() => {
     if (wilaya && daira && algeriaLocations[wilaya] && algeriaLocations[wilaya][daira]) {
@@ -1071,27 +1019,40 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setCommunes([]);
     }
-    setCommune('');
-  }, [wilaya, daira]);
+     // Si on n'édite pas OU si la commune du projet n'est pas dans la nouvelle liste
+    if (!project || (project && (project.wilaya !== wilaya || project.daira !== daira))) {
+        setCommune('');
+    }
+  }, [wilaya, daira, project]); // Ajout project aux dépendances
   
   // Pré-remplir les listes si on édite
   useEffect(() => {
     if (project) {
-      if (project.wilaya && algeriaLocations[project.wilaya]) {
-        setDairas(Object.keys(algeriaLocations[project.wilaya]));
-      }
-      if (project.wilaya && project.daira && algeriaLocations[project.wilaya] && algeriaLocations[project.wilaya][project.daira]) {
-        setCommunes(algeriaLocations[project.wilaya][project.daira]);
-      }
+       setNom(project.nom);
+       setAbreviation(project.abreviation);
+       setWilaya(project.wilaya);
+       setAdresse(project.adresse);
+       setStatut(project.statut);
+       setIdResponsable(project.id_responsable);
+       // Déclenche les useEffect dépendants pour remplir Daira/Commune
+       if (project.wilaya && algeriaLocations[project.wilaya]) {
+         setDairas(Object.keys(algeriaLocations[project.wilaya]));
+         setDaira(project.daira); // Définit la daira APRÈS avoir peuplé la liste
+       }
+        if (project.wilaya && project.daira && algeriaLocations[project.wilaya] && algeriaLocations[project.wilaya][project.daira]) {
+           setCommunes(algeriaLocations[project.wilaya][project.daira]);
+           setCommune(project.commune); // Définit la commune APRÈS avoir peuplé la liste
+        }
+       setAutoAbrev(project.abreviation); // Pour que la modif manuelle soit gardée
     }
-  }, [project]);
+  }, [project]); // Se déclenche si l'objet projet change
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
       ...project,
       nom,
-      abreviation: abreviation.toUpperCase(),
+      abreviation: abreviation.toUpperCase(), // Assure majuscule
       wilaya, daira, commune, adresse, statut, id_responsable: idResponsable
     });
   };
@@ -1105,9 +1066,10 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation (auto-majuscule)</label>
-          <input type="text" value={abreviation} onChange={(e) => setAbreviation(e.target.value)} required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation</label>
+          <input type="text" value={abreviation} onChange={(e) => setAbreviation(e.target.value.toUpperCase())} required maxLength="4"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 uppercase" />
+             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Générée automatiquement, modifiable (max 4 lettres).</p>
         </div>
       </div>
       <div>
@@ -1156,8 +1118,11 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Responsable du Projet</label>
           <select value={idResponsable} onChange={(e) => setIdResponsable(e.target.value)} required disabled={!isAdmin}
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+             {/* Optionnel: Ajouter une option vide si nécessaire */}
+             {/* <option value="">-- Non Assigné --</option> */}
             {ingenieurs.map(u => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
           </select>
+           {!isAdmin && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Vous êtes assigné comme responsable.</p>}
         </div>
       </div>
 
@@ -1176,19 +1141,207 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   );
 };
 
+// NOUVEAU: Formulaire Plan
+const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave, onCancel, currentUser }) => {
+    const [titre, setTitre] = useState(plan ? plan.titre : '');
+    const [idBloc, setIdBloc] = useState(plan ? plan.id_bloc : '');
+    const [idLot, setIdLot] = useState(plan ? plan.id_lot : '');
+    const [idSousLot, setIdSousLot] = useState(plan ? plan.id_souslot : '');
+    const [statut, setStatut] = useState(plan ? plan.statut : "En cours d'approbation");
+    const [fichier, setFichier] = useState(plan ? plan.fichier_pdf : null); // Simule le fichier
+    const [commentaire, setCommentaire] = useState(''); // Pour la première révision
 
-// Page Plans
-// ... (Identique, sauf vérification projectId)
+    const projectBlocks = useMemo(() => allBlocks.filter(b => b.id_projet === selectedProject.id), [allBlocks, selectedProject.id]);
+    const projectLots = useMemo(() => allLots.filter(l => l.id_projet === selectedProject.id), [allLots, selectedProject.id]);
+    const selectedLot = useMemo(() => projectLots.find(l => l.id === idLot), [projectLots, idLot]);
+    const sousLotsDisponibles = useMemo(() => selectedLot?.sousLots || [], [selectedLot]);
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      
+      // 1. Calculer le prochain numéro
+      const plansInContext = allPlans.filter(p => 
+        p.id_projet === selectedProject.id && 
+        p.id_bloc === idBloc && 
+        p.id_lot === idLot
+      );
+      const nextNumero = plansInContext.length > 0 ? Math.max(...plansInContext.map(p => p.numero)) + 1 : 1;
+      
+      // 2. Formater le numéro (ex: 001)
+      const numeroStr = String(nextNumero).padStart(3, '0');
+      
+      // 3. Récupérer les abréviations
+      const projAbrev = selectedProject.abreviation || 'PROJ';
+      const blocAbrev = allBlocks.find(b => b.id === idBloc)?.abreviation || 'BLOC';
+      const lotAbrev = allLots.find(l => l.id === idLot)?.abreviation || 'LOT';
+      
+      // 4. Construire la référence initiale
+      const reference = `${projAbrev}-${blocAbrev}-${lotAbrev}-${numeroStr}-R00`;
+
+      // 5. Créer l'objet historique initial
+      const initialHistorique = [{
+          version: 'R00',
+          date: new Date().toISOString().split('T')[0],
+          utilisateur: currentUser.username,
+          commentaire: commentaire || 'Création initiale'
+      }];
+
+      // 6. Préparer les données à sauvegarder
+      const planData = {
+          ...plan, // Garde l'ID si modification
+          id_projet: selectedProject.id,
+          titre,
+          id_bloc: idBloc,
+          id_lot: idLot,
+          id_souslot: idSousLot || null, // Assure null si vide
+          statut,
+          fichier_pdf: fichier ? `sim-${fichier.name}` : (plan?.fichier_pdf || 'aucun'), // Simule nom fichier
+          reference,
+          numero: nextNumero,
+          revision: 0, // Commence à R00
+          date_creation: new Date().toISOString().split('T')[0],
+          id_createur: currentUser.id,
+          historique: initialHistorique,
+      };
+
+      onSave(planData);
+    };
+
+    // Simule la sélection de fichier
+    const handleFileChange = (e) => {
+        if (e.target.files.length > 0) {
+            setFichier(e.target.files[0]);
+        }
+    };
+
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
+          <input type="text" value={titre} onChange={(e) => setTitre(e.target.value)} required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+           <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bloc</label>
+             <select value={idBloc} onChange={(e) => setIdBloc(e.target.value)} required
+               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+               <option value="">-- Sélectionner Bloc --</option>
+               {projectBlocks.map(b => <option key={b.id} value={b.id}>{b.nom} ({b.abreviation})</option>)}
+             </select>
+           </div>
+           <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Lot</label>
+             <select value={idLot} onChange={(e) => {setIdLot(e.target.value); setIdSousLot('');}} required
+               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+               <option value="">-- Sélectionner Lot --</option>
+               {projectLots.map(l => <option key={l.id} value={l.id}>{l.nom} ({l.abreviation})</option>)}
+             </select>
+           </div>
+           <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sous-Lot (Optionnel)</label>
+             <select value={idSousLot} onChange={(e) => setIdSousLot(e.target.value)} disabled={sousLotsDisponibles.length === 0}
+               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+               <option value="">-- Aucun --</option>
+               {sousLotsDisponibles.map(sl => <option key={sl.id} value={sl.id}>{sl.nom} ({sl.abreviation})</option>)}
+             </select>
+           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut Initial</label>
+          <select value={statut} onChange={(e) => setStatut(e.target.value)} required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+            <option value="En cours d'approbation">En cours d'approbation</option>
+            <option value="Approuvé CTC">Approuvé CTC</option>
+            <option value="Déposé au MO">Déposé au MO</option>
+            <option value="Obsolète">Obsolète</option>
+          </select>
+        </div>
+
+        <div>
+           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fichier PDF (R00)</label>
+           <div className="mt-1 flex items-center space-x-2">
+              <label htmlFor="file-upload" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                 <Upload className="w-4 h-4 mr-2"/>
+                 Choisir un fichier
+              </label>
+              <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf"/>
+              {fichier && <span className="text-sm text-gray-500 truncate">{fichier.name}</span>}
+              {!fichier && plan?.fichier_pdf && <span className="text-sm text-gray-500 truncate">{plan.fichier_pdf}</span>}
+           </div>
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Simule l'upload. Le nom sera enregistré.</p>
+        </div>
+        
+         <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire Initial (Optionnel)</label>
+          <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="2"
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700"
+            placeholder="Ex: Version initiale pour approbation CTC"
+           />
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <button type="button" onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+            Annuler
+          </button>
+          <button type="submit"
+            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">
+            <Save className="w-4 h-4 mr-2" />
+            {plan ? "Mettre à jour" : "Créer Plan (R00)"} 
+          </button>
+        </div>
+      </form>
+    );
+};
+
+// Page Plans (avec CUD partiel)
 const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser }) => { 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null); // Pour modification future
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
-  const { projectId } = useParams(); // Récupérer l'ID depuis l'URL
+  const { projectId } = useParams(); 
 
-  // Vérifier si un projet est sélectionné (via l'URL maintenant)
   if (!projectId || !selectedProject || selectedProject.id !== projectId) {
-     return <Navigate to="/select-project" replace />; // Rediriger si incohérent
+     return <Navigate to="/select-project" replace />; 
   }
   
   const projectPlans = plans.filter(p => p.id_projet === projectId);
+
+  const openModalToCreate = () => {
+    setEditingPlan(null);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingPlan(null);
+  };
+  
+  const handleSave = (planData) => {
+    if (editingPlan) {
+      // Modification (à implémenter)
+      alert("Modification non implémentée");
+      setPlans(plans.map(p => p.id === editingPlan.id ? { ...p, ...planData } : p));
+    } else {
+      // Création
+      const newPlan = {
+        ...planData,
+        id: 'pl' + Date.now(), // ID unique simple
+      };
+      setPlans([...plans, newPlan]);
+    }
+    closeModal();
+  };
+  
+   const handleDelete = (planId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plan et tout son historique ?")) {
+      setPlans(plans.filter(p => p.id !== planId));
+    }
+  };
+
 
   const getStatusIcon = (statut) => {
     switch (statut) {
@@ -1206,7 +1359,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
         {isAdmin && (
           <button 
-            onClick={() => alert("La création de plan sera ajoutée prochainement.")}
+            onClick={openModalToCreate} // Ouvre la modal de création
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -1215,25 +1368,20 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
         )}
       </div>
 
-      {/* Barre de filtre (simplifiée) */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4">
-        <input 
-          type="text" 
-          placeholder="Filtrer par référence, titre, lot..."
-          className="w-full pl-4 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <input type="text" placeholder="Filtrer..."
+          className="w-full pl-4 pr-4 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
-      {/* Tableau des plans */}
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Référence</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Titre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Infos</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dernière MàJ</th>
+             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Statut</th>
+              <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Référence</th>
+              <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Titre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Infos</th>
+              <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Dernière MàJ</th>
               <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
@@ -1243,57 +1391,82 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center space-x-2">
                     {getStatusIcon(plan.statut)}
-                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{plan.statut}</span>
+                    <span className="text-sm font-medium dark:text-gray-100">{plan.statut}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900 dark:text-gray-100">{plan.reference}</div>
+                  <div className="text-sm font-bold dark:text-gray-100">{plan.reference}</div>
                   <div className="text-sm text-blue-600 dark:text-blue-400">{plan.fichier_pdf}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-300">{plan.titre}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
                   <div><span className="font-semibold">Bloc:</span> {blocks.find(b => b.id === plan.id_bloc)?.abreviation || 'N/A'}</div>
                   <div><span className="font-semibold">Lot:</span> {lots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
                   <div>{plan.historique[plan.historique.length - 1].date}</div>
-                  <div className="text-xs text-gray-400">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
+                  <div className="text-xs text-gray-500">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                   {isAdmin && (
-                    <button 
-                      onClick={() => alert("La gestion des révisions sera ajoutée prochainement.")}
-                      title="Gérer les révisions" 
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                    >
-                      <FileDiff className="w-5 h-5" />
-                    </button>
+                    <>
+                    <button onClick={() => alert("Modification de plan bientôt disponible.")} title="Modifier"
+                       className="p-1.5 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-gray-700">
+                       <Edit2 className="w-4 h-4" />
+                     </button>
+                    <button onClick={() => alert("Gestion des révisions bientôt disponible.")} title="Gérer Révisions"
+                       className="p-1.5 text-indigo-600 dark:text-indigo-400 rounded hover:bg-indigo-100 dark:hover:bg-gray-700">
+                       <FileDiff className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => handleDelete(plan.id)} title="Supprimer Plan"
+                       className="p-1.5 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-gray-700">
+                       <Trash2 className="w-4 h-4" />
+                     </button>
+                    </>
                   )}
                   {!isAdmin && (
-                    <button 
-                      onClick={() => alert("Affichage de l'historique des révisions...")}
-                      title="Voir les révisions" 
-                      className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                    >
-                      <Eye className="w-5 h-5" />
+                    <button onClick={() => alert("Affichage de l'historique...")} title="Voir Révisions"
+                      className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                      <Eye className="w-4 h-4" />
                     </button>
                   )}
-                  <button 
-                    onClick={() => navigator.clipboard.writeText(plan.reference)}
-                    title="Copier la référence" 
-                    className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                  >
-                    <Copy className="w-5 h-5" />
+                  <button onClick={() => navigator.clipboard.writeText(plan.reference)} title="Copier Référence"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <Copy className="w-4 h-4" />
                   </button>
+                   {/* Simuler lien fichier */}
+                   <a href="#" onClick={(e) => { e.preventDefault(); alert(`Ouverture simulée de ${plan.fichier_pdf}`); }} title="Voir PDF"
+                     className="p-1.5 inline-block text-green-600 dark:text-green-400 rounded hover:bg-green-100 dark:hover:bg-gray-700">
+                     <ExternalLink className="w-4 h-4" />
+                   </a>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      
+       {/* Modal pour Créer/Modifier Plan */}
+       <Modal 
+         isOpen={isModalOpen} 
+         onClose={closeModal} 
+         title={editingPlan ? "Modifier le Plan" : "Créer un Nouveau Plan"}
+       >
+         <PlanForm 
+           plan={editingPlan} 
+           selectedProject={selectedProject}
+           allBlocks={blocks} // Passe tous les blocs
+           allLots={lots}     // Passe tous les lots
+           allPlans={plans}   // Passe tous les plans (pour calcul numéro)
+           onSave={handleSave} 
+           onCancel={closeModal}
+           currentUser={currentUser}
+         />
+       </Modal>
     </div>
   );
 };
+
 
 // Modal Générique
 // ... (Identique)
@@ -1301,9 +1474,9 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg m-4">
-        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700 flex-shrink-0">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             onClick={onClose}
@@ -1312,7 +1485,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
             <X className="w-6 h-6" />
           </button>
         </div>
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto"> {/* Ajout overflow */}
           {children}
         </div>
       </div>
@@ -1320,16 +1493,33 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// Formulaire Blocs
-// ... (Identique)
+// Formulaire Blocs (avec abréviation auto)
 const BlockForm = ({ block, onSave, onCancel }) => {
   const [nom, setNom] = useState(block ? block.nom : '');
-  const [abreviation, setAbreviation] = useState(block ? block.abreviation : '');
+  const [abreviation, setAbreviation] = useState(block ? block.abreviation : generateAbbreviation(nom));
+  const [autoAbrev, setAutoAbrev] = useState(block ? block.abreviation : generateAbbreviation(nom));
+
+  useEffect(() => {
+    const newAbrev = generateAbbreviation(nom);
+    if (!abreviation || abreviation === autoAbrev) {
+      setAbreviation(newAbrev);
+    }
+    setAutoAbrev(newAbrev);
+  }, [nom]);
+
+   useEffect(() => { // Pour préremplir en édition
+      if (block) {
+         setNom(block.nom);
+         setAbreviation(block.abreviation);
+         setAutoAbrev(block.abreviation);
+      }
+   }, [block]);
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
-      ...block, // Garde l'id et id_projet si en modification
+      ...block, 
       nom,
       abreviation: abreviation.toUpperCase(),
     });
@@ -1339,41 +1529,21 @@ const BlockForm = ({ block, onSave, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label htmlFor="block-nom" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Bloc</label>
-        <input
-          type="text"
-          id="block-nom"
-          value={nom}
-          onChange={(e) => setNom(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
-        />
+        <input type="text" id="block-nom" value={nom} onChange={(e) => setNom(e.target.value)} required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700" />
       </div>
       <div>
-        <label htmlFor="block-abreviation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation (auto-majuscule)</label>
-        <input
-          type="text"
-          id="block-abreviation"
-          value={abreviation}
-          onChange={(e) => setAbreviation(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
-        />
+        <label htmlFor="block-abreviation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation</label>
+        <input type="text" id="block-abreviation" value={abreviation} onChange={(e) => setAbreviation(e.target.value.toUpperCase())} required maxLength="4"
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 uppercase" />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Générée automatiquement, modifiable (max 4 lettres).</p>
       </div>
       <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
-        >
-          Annuler
-        </button>
-        <button
-          type="submit"
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          Enregistrer
-        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"> Annuler </button>
+        <button type="submit"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">
+          <Save className="w-4 h-4 mr-2" /> Enregistrer </button>
       </div>
     </form>
   );
@@ -1490,15 +1660,33 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
   );
 };
 
-// Formulaire Lots
-// ... (Identique)
+// Formulaire Lots (avec abréviation auto)
 const LotForm = ({ lot, onSave, onCancel }) => {
   const [nom, setNom] = useState(lot ? lot.nom : '');
-  const [abreviation, setAbreviation] = useState(lot ? lot.abreviation : '');
+  const [abreviation, setAbreviation] = useState(lot ? lot.abreviation : generateAbbreviation(nom));
+  const [autoAbrev, setAutoAbrev] = useState(lot ? lot.abreviation : generateAbbreviation(nom));
   const [ctc, setCtc] = useState(lot ? lot.ctc_approbation : false);
   const [sousLots, setSousLots] = useState(lot ? lot.sousLots : []);
   const [newSousLotNom, setNewSousLotNom] = useState('');
   const [newSousLotAbrev, setNewSousLotAbrev] = useState('');
+  
+   useEffect(() => {
+    const newAbrev = generateAbbreviation(nom);
+    if (!abreviation || abreviation === autoAbrev) {
+      setAbreviation(newAbrev);
+    }
+    setAutoAbrev(newAbrev);
+  }, [nom]);
+  
+   useEffect(() => { // Préremplissage édition
+      if (lot) {
+         setNom(lot.nom);
+         setAbreviation(lot.abreviation);
+         setAutoAbrev(lot.abreviation);
+         setCtc(lot.ctc_approbation);
+         setSousLots(lot.sousLots);
+      }
+   }, [lot]);
 
   const handleAddSousLot = () => {
     if (newSousLotNom && newSousLotAbrev) {
@@ -1519,7 +1707,7 @@ const LotForm = ({ lot, onSave, onCancel }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
-      ...lot, // Garde l'id et id_projet si en modification
+      ...lot, 
       nom,
       abreviation: abreviation.toUpperCase(),
       ctc_approbation: ctc,
@@ -1531,34 +1719,18 @@ const LotForm = ({ lot, onSave, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
       <div>
         <label htmlFor="lot-nom" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Lot</label>
-        <input
-          type="text"
-          id="lot-nom"
-          value={nom}
-          onChange={(e) => setNom(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
-        />
+        <input type="text" id="lot-nom" value={nom} onChange={(e) => setNom(e.target.value)} required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700" />
       </div>
       <div>
-        <label htmlFor="lot-abreviation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation (auto-majuscule)</label>
-        <input
-          type="text"
-          id="lot-abreviation"
-          value={abreviation}
-          onChange={(e) => setAbreviation(e.target.value)}
-          required
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
-        />
+        <label htmlFor="lot-abreviation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation</label>
+        <input type="text" id="lot-abreviation" value={abreviation} onChange={(e) => setAbreviation(e.target.value.toUpperCase())} required maxLength="4"
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 uppercase" />
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Générée automatiquement, modifiable (max 4 lettres).</p>
       </div>
       <div className="flex items-center">
-        <input
-          type="checkbox"
-          id="lot-ctc"
-          checked={ctc}
-          onChange={(e) => setCtc(e.target.checked)}
-          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
+        <input type="checkbox" id="lot-ctc" checked={ctc} onChange={(e) => setCtc(e.target.checked)}
+          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
         <label htmlFor="lot-ctc" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Soumis à approbation CTC</label>
       </div>
       
@@ -1580,49 +1752,26 @@ const LotForm = ({ lot, onSave, onCancel }) => {
         <div className="flex items-end space-x-2">
           <div className="flex-1">
             <label className="text-xs text-gray-500">Nom sous-lot</label>
-            <input 
-              type="text"
-              value={newSousLotNom}
-              onChange={(e) => setNewSousLotNom(e.target.value)}
-              className="mt-1 block w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
-              placeholder="Ex: Courants Forts"
-            />
+            <input type="text" value={newSousLotNom} onChange={(e) => setNewSousLotNom(e.target.value)}
+              className="mt-1 block w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" placeholder="Ex: Courants Forts" />
           </div>
           <div className="w-1/3">
             <label className="text-xs text-gray-500">Abrev. sous-lot</label>
-            <input 
-              type="text"
-              value={newSousLotAbrev}
-              onChange={(e) => setNewSousLotAbrev(e.target.value)}
-              className="mt-1 block w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
-              placeholder="Ex: CF"
-            />
+            <input type="text" value={newSousLotAbrev} onChange={(e) => setNewSousLotAbrev(e.target.value.toUpperCase())} maxLength="4"
+              className="mt-1 block w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 uppercase" placeholder="Ex: CF" />
           </div>
-          <button
-            type="button"
-            onClick={handleAddSousLot}
-            className="p-2 text-white bg-green-600 rounded-md hover:bg-green-700"
-          >
+          <button type="button" onClick={handleAddSousLot} className="p-2 text-white bg-green-600 rounded-md hover:bg-green-700">
             <PlusCircle className="w-5 h-5" />
           </button>
         </div>
       </div>
       
       <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
-        >
-          Annuler
-        </button>
-        <button
-          type="submit"
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          Enregistrer
-        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"> Annuler </button>
+        <button type="submit"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">
+          <Save className="w-4 h-4 mr-2" /> Enregistrer </button>
       </div>
     </form>
   );
@@ -1677,7 +1826,7 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   };
 
   const handleDelete = (lotId) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce lot ?")) {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce lot et ses sous-lots ?")) {
       setAllLots(allLots.filter(l => l.id !== lotId));
     }
   };
@@ -1802,6 +1951,11 @@ const RevisionsPage = ({ selectedProject, plans }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.commentaire}</td>
               </tr>
             ))}
+             {allRevisions.length === 0 && (
+                <tr>
+                   <td colSpan="5" className="text-center py-10 text-gray-500 dark:text-gray-400">Aucune révision trouvée pour ce projet.</td>
+                </tr>
+             )}
           </tbody>
         </table>
       </div>
@@ -1848,6 +2002,7 @@ const UserForm = ({ user, onSave, onCancel }) => {
           <option value="Ingénieur de suivi">Ingénieur de suivi</option>
           <option value="Administrateur secondaire">Administrateur secondaire</option>
           <option value="Visiteur">Visiteur</option>
+          {/* Ne permet pas de créer/modifier un Gérant Principal via le formulaire */}
         </select>
       </div>
 
@@ -1875,10 +2030,7 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
   
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
-  // NOTE: La redirection est maintenant gérée par AdminLayoutWrapper
-  // if (!isAdmin) {
-  //    return <Navigate to={currentUser ? "/select-project" : "/login"} replace />;
-  // }
+  // NOTE: La redirection est gérée par AdminLayoutWrapper
   
   const openModalToEdit = (user) => {
     setEditingUser(user);
@@ -1901,9 +2053,14 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
       setAllUsers(allUsers.map(u => u.id === editingUser.id ? { ...u, ...userData } : u));
     } else {
       // Création
+      // Vérifier si l'identifiant existe déjà
+      if (allUsers.some(u => u.username === userData.username)) {
+         alert("Erreur: Cet identifiant existe déjà.");
+         return; // Arrêter la sauvegarde
+      }
       const newUser = {
         ...userData,
-        id: 'u' + Date.now(), // ID unique simple
+        id: 'u' + Date.now(), 
       };
       setAllUsers([...allUsers, newUser]);
     }
@@ -1911,8 +2068,16 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
   };
 
   const handleDelete = (userId) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
+     const userToDelete = allUsers.find(u => u.id === userId);
+     if (!userToDelete) return;
+     // Vérification supplémentaire (ne devrait pas arriver car bouton désactivé)
+     if (userToDelete.role === 'Gérant principal') {
+        alert("Impossible de supprimer le Gérant Principal.");
+        return;
+     }
+    if (window.confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${userToDelete.username}" ?`)) {
       setAllUsers(allUsers.filter(u => u.id !== userId));
+      // TODO: Vérifier si cet utilisateur était responsable de projets et les réassigner ou marquer comme non assigné
     }
   };
 
@@ -1945,15 +2110,17 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                   <button 
                     onClick={() => openModalToEdit(user)}
-                    className="text-blue-600 dark:text-blue-400 disabled:text-gray-400"
-                    disabled={user.role === 'Gérant principal'} // On ne peut pas modifier le gérant principal
+                    className="text-blue-600 dark:text-blue-400 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    disabled={user.role === 'Gérant principal'} 
+                    title={user.role === 'Gérant principal' ? "Modification non autorisée" : "Modifier"}
                   >
                     <Edit2 className="w-5 h-5" />
                   </button>
                   <button 
                     onClick={() => handleDelete(user.id)}
-                    className="text-red-600 dark:text-red-400 disabled:text-gray-400"
-                    disabled={user.role === 'Gérant principal'} // On ne peut pas supprimer le gérant principal
+                    className="text-red-600 dark:text-red-400 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    disabled={user.role === 'Gérant principal'} 
+                     title={user.role === 'Gérant principal' ? "Suppression non autorisée" : "Supprimer"}
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
