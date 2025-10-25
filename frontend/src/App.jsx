@@ -156,7 +156,6 @@ export default function App() {
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
         filteredProjects = allProjects; 
       } else if (user.role === 'Ingénieur de suivi' || user.role === 'Visiteur') {
-        // CORRECTION: Assurer que même les projets sans responsable ou avec accès visiteur sont inclus si applicable
         filteredProjects = allProjects.filter(p => p.id_responsable === user.id || (user.role === 'Visiteur' && p.acces_visiteur === true)); 
       }
       
@@ -166,7 +165,7 @@ export default function App() {
       navigate('/select-project'); // Rediriger vers la sélection de projet
     } else {
       console.error("Identifiants incorrects");
-      alert("Identifiant ou mot de passe incorrect."); // Ajout d'un feedback utilisateur
+      alert("Identifiant ou mot de passe incorrect."); 
     }
   };
 
@@ -191,22 +190,22 @@ export default function App() {
     navigate(`/project/${projectId}/dashboard`); // Navigue vers le dashboard du projet
   };
 
-  // NOUVELLE: Données CUD passées comme props
+  // Données CUD passées comme props
   const appData = {
     allProjects, setAllProjects,
     allBlocks, setAllBlocks,
     allLots, setAllLots,
     allPlans, setAllPlans,
     allUsers, setAllUsers,
-    selectedProject, // Le projet actuellement sélectionné AVEC TOUS LES DETAILS
+    selectedProject, 
     userProjects, 
     isDarkMode,
     currentUser,
-    setSelectedProjectId // Ajouter pour la gestion via dropdown
+    setSelectedProjectId 
   };
 
   return (
-    // CORRECTION: Retiré h-screen ici pour permettre au contenu de déborder si nécessaire
+    // CORRECTION: Le div racine gère min-h-screen, les layouts internes géreront h-screen
     <div className={`bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen`}> 
       <Routes>
         <Route
@@ -232,7 +231,7 @@ export default function App() {
           }
         />
 
-        {/* NOUVELLE: Route pour le Layout Projet imbriqué */}
+        {/* Layout Projet */}
         <Route 
           path="/project/:projectId/*" 
           element={
@@ -243,6 +242,7 @@ export default function App() {
                 userProjects={userProjects}
                 setSelectedProjectId={setSelectedProjectId}
               >
+                {/* CORRECTION: Le layout est maintenant à l'intérieur du wrapper */}
                 <MainLayout
                   isDarkMode={isDarkMode}
                   setIsDarkMode={setIsDarkMode}
@@ -260,7 +260,7 @@ export default function App() {
           }
         />
         
-         {/* NOUVELLE: Route pour le Layout Admin */}
+         {/* Layout Admin */}
          <Route 
            path="/admin/*"
            element={
@@ -268,6 +268,7 @@ export default function App() {
                <AdminLayoutWrapper
                  currentUser={currentUser}
                >
+                 {/* CORRECTION: Le layout est maintenant à l'intérieur du wrapper */}
                  <AdminLayout 
                    currentUser={currentUser} 
                    handleLogout={handleLogout} 
@@ -289,7 +290,7 @@ export default function App() {
   );
 }
 
-// --- NOUVEAU: Wrappers pour la logique de redirection ---
+// --- Wrappers pour la logique de redirection ---
 const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userProjects, setSelectedProjectId }) => {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -299,30 +300,39 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
       navigate('/login', { replace: true });
       return;
     }
-    if (!projectId || !userProjects.some(p => p.id === projectId)) {
-      setSelectedProjectId(null); // Assure la désélection si l'ID est invalide
+    // Si l'URL contient un projectId mais qu'il n'est pas dans les projets accessibles
+    if (projectId && !userProjects.some(p => p.id === projectId)) {
+      setSelectedProjectId(null); 
       navigate('/select-project', { replace: true });
-    } else if (projectId !== selectedProjectId) {
-      setSelectedProjectId(projectId); // Synchronise l'état si l'URL change
+    // Si l'URL contient un projectId valide mais qu'il est différent de l'état actuel
+    } else if (projectId && projectId !== selectedProjectId) {
+      setSelectedProjectId(projectId); // Synchronise l'état
+    } 
+    // Si l'URL ne contient PAS de projectId (cas improbable ici, mais sécurité)
+    else if (!projectId && selectedProjectId) {
+        // Retour à la sélection si l'état indique un projet mais l'URL non
+        setSelectedProjectId(null);
+        navigate('/select-project', { replace: true });
     }
   }, [isAuthenticated, projectId, userProjects, navigate, selectedProjectId, setSelectedProjectId]);
 
-  // Attend que selectedProjectId soit synchronisé avec projectId
+  // Attend que selectedProjectId soit synchronisé avec projectId (ET qu'il soit valide)
   if (!selectedProjectId || selectedProjectId !== projectId) {
     return <div className="flex items-center justify-center h-screen">Chargement du projet...</div>;
   }
 
-  return children;
+  // CORRECTION: Wrapper applique h-screen ici
+  return <div className="h-screen">{children}</div>;
 };
 
 const AdminLayoutWrapper = ({ children, currentUser }) => {
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!isAdmin) {
-    // Si pas admin, rediriger vers la sélection de projet
     return <Navigate to="/select-project" replace />;
   }
-  return children;
+  // CORRECTION: Wrapper applique h-screen ici
+  return <div className="h-screen">{children}</div>;
 };
 
 
@@ -400,40 +410,32 @@ const ProjectSelectionPage = ({ userProjects, onSelectProject, handleLogout, cur
 };
 
 // --- Composant Layout Principal ---
-// CORRECTION: Ajout de 'flex h-screen' pour assurer la disposition correcte
+// CORRECTION: Structure flexbox corrigée
 const MainLayout = ({ 
   isDarkMode, setIsDarkMode, currentUser, handleLogout, 
   userProjects, selectedProjectId, setSelectedProjectId,
   appData // Contient maintenant selectedProject détaillé
 }) => {
-  const { projectId } = useParams(); // Récupère projectId depuis l'URL
-
-  // Récupère les données CUD de appData
-  const { allProjects, allBlocks, allLots, allPlans, allUsers, 
-          setAllProjects, setAllBlocks, setAllLots, setAllPlans, setAllUsers, 
-          selectedProject } = appData;
+  const { projectId } = useParams(); 
+  const { selectedProject } = appData; // Récupère le projet déjà validé par le wrapper
 
   // Prépare les props à passer aux pages spécifiques du projet
-  const pageProps = {
-    isDarkMode, currentUser, selectedProject, selectedProjectId,
-    allProjects, setAllProjects, allBlocks, setAllBlocks, allLots, setAllLots, 
-    allPlans, setAllPlans, allUsers, setAllUsers, setSelectedProjectId
-  };
+  const pageProps = { ...appData, isDarkMode, currentUser, selectedProject, selectedProjectId, setSelectedProjectId };
           
-  // Si le projet sélectionné n'est pas encore chargé (ou invalide), afficher chargement
-  // Cette vérification est redondante avec le Wrapper mais assure la robustesse
+  // Normalement redondant grâce au wrapper, mais sécurité supplémentaire
   if (!selectedProject || selectedProject.id !== projectId) {
-      return <div className="flex items-center justify-center h-screen">Chargement des détails du projet...</div>;
+      return <div className="flex items-center justify-center h-screen">Erreur: Projet invalide ou non chargé.</div>;
   }
 
   return (
-    // CORRECTION: Le div parent doit avoir 'flex' et 'h-screen'
-    <div className="flex h-screen"> 
+    // CORRECTION: 'flex' appliqué ici pour Sidebar + Contenu
+    <div className="flex h-full"> {/* h-full prend la hauteur du wrapper */}
       <Sidebar 
         handleLogout={handleLogout}
         currentUser={currentUser}
         projectId={projectId} 
       />
+      {/* CORRECTION: Conteneur pour Header + Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           isDarkMode={isDarkMode} 
@@ -443,6 +445,7 @@ const MainLayout = ({
           selectedProjectId={selectedProjectId}
           setSelectedProjectId={setSelectedProjectId} 
         />
+        {/* CORRECTION: Main prend le reste de l'espace et permet le défilement interne */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
           <Routes>
              <Route path="dashboard" element={<DashboardPage {...pageProps} />} />
@@ -450,9 +453,7 @@ const MainLayout = ({
              <Route path="blocks" element={<BlocksPage {...pageProps} />} />
              <Route path="lots" element={<LotsPage {...pageProps} />} />
              <Route path="revisions" element={<RevisionsPage {...pageProps} />} />
-             {/* Routes Admin (accessibles seulement via /admin/* maintenant) */}
-             {/* <Route path="users" element={<UsersPage {...pageProps} />} /> */}
-             {/* <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} /> */}
+             {/* Note: Les routes Admin ne sont plus accessibles via ce layout */}
              
              <Route index element={<Navigate to="dashboard" replace />} />
              <Route path="*" element={<Navigate to="dashboard" replace />} /> 
@@ -464,31 +465,33 @@ const MainLayout = ({
 };
 
 // --- Layout Admin ---
-// CORRECTION: Ajout de 'flex h-screen' pour assurer la disposition correcte
+// CORRECTION: Structure flexbox corrigée
 const AdminLayout = ({ currentUser, handleLogout, appData, isDarkMode, setIsDarkMode }) => {
-   // appData contient allUsers, setAllUsers etc.
-   const pageProps = { ...appData, isDarkMode, currentUser }; // Props pour les pages admin
+   const pageProps = { ...appData, isDarkMode, currentUser }; 
+   const navigate = useNavigate(); // Ajout pour le dropdown Header
 
    return (
-      // CORRECTION: Le div parent doit avoir 'flex' et 'h-screen'
-     <div className="flex h-screen"> 
+     // CORRECTION: 'flex' appliqué ici pour Sidebar + Contenu
+     <div className="flex h-full"> {/* h-full prend la hauteur du wrapper */}
          <Sidebar 
            handleLogout={handleLogout}
            currentUser={currentUser}
            projectId={null} // Pas de projet actif pour l'admin
          />
+         {/* CORRECTION: Conteneur pour Header + Main */}
          <div className="flex-1 flex flex-col overflow-hidden">
             <Header 
               isDarkMode={isDarkMode} 
               setIsDarkMode={setIsDarkMode} 
               currentUser={currentUser}
-              userProjects={[]} // Pas de projet actif
+              userProjects={[]} 
               selectedProjectId={null}
-              setSelectedProjectId={() => navigate('/select-project')} // Retour à la sélection
+              // CORRECTION: Le dropdown dans l'admin renvoie à la sélection de projet
+              setSelectedProjectId={() => navigate('/select-project')} 
             />
+           {/* CORRECTION: Main prend le reste de l'espace et permet le défilement interne */}
            <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
              <Routes>
-                {/* Passer les props nécessaires */}
                 <Route path="users" element={<UsersPage {...pageProps} />} /> 
                 <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} />
                 <Route index element={<Navigate to="users" replace />} />
@@ -500,7 +503,7 @@ const AdminLayout = ({ currentUser, handleLogout, appData, isDarkMode, setIsDark
    );
 };
 
-/* --- Le reste des composants (LoginScreen, Sidebar, Header, Pages, Modals, Forms) --- */
+/* --- Le reste des composants (LoginScreen, Sidebar, Header (modifié), Pages, Modals, Forms) --- */
 
 // --- Composants de l'interface ---
 
@@ -573,27 +576,27 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const location = useLocation(); 
 
-  const projectUrl = (path) => `/project/${projectId}/${path}`;
-  // NOUVEAU: URLs Admin
+  const projectUrl = (path) => projectId ? `/project/${projectId}/${path}` : '#'; // Retourne '#' si pas de projectId
   const adminUrl = (path) => `/admin/${path}`; 
 
   const NavItem = ({ icon, label, to, disabled = false }) => {
-    const isActive = location.pathname.startsWith(to); 
-    // CORRECTION: La désactivation dépend si c'est un lien projet et si projectId existe
-    const isDisabled = disabled && !projectId && !to.startsWith('/admin'); 
+    // isActive est vrai si le chemin actuel commence exactement par 'to'
+    // Exception: /select-project qui est toujours actif s'il correspond
+    const isActive = to === '/select-project' ? location.pathname === to : location.pathname.startsWith(to) && to !== '/select-project'; 
+    
+    // Un lien projet est désactivé si projectId est null ET ce n'est PAS un lien admin
+    const isDisabled = !projectId && !to.startsWith('/admin') && to !== '/select-project';
 
     return (
       <Link
         to={isDisabled ? "#" : to} 
-        // CORRECTION: Style pour lien désactivé amélioré
         className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
           isActive && !isDisabled
-            ? 'bg-blue-600 text-white shadow-inner' // Ombre intérieure pour actif
+            ? 'bg-blue-600 text-white shadow-inner' 
             : isDisabled
-            ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50' // Plus visiblement désactivé
+            ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50' 
             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
-        // Empêche le clic si désactivé
         onClick={(e) => { if (isDisabled) e.preventDefault(); }} 
       >
         {React.createElement(icon, { className: "w-5 h-5 mr-3 flex-shrink-0" })}
@@ -603,16 +606,16 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
   };
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 shadow-lg flex flex-col flex-shrink-0 h-full"> {/* Ajout h-full */}
-      <div className="flex items-center justify-center h-20 border-b dark:border-gray-700 flex-shrink-0"> {/* Ajout flex-shrink-0 */}
+    <div className="w-64 bg-white dark:bg-gray-800 shadow-lg flex flex-col flex-shrink-0 h-full"> 
+      <div className="flex items-center justify-center h-20 border-b dark:border-gray-700 flex-shrink-0"> 
         <Building className="w-10 h-10 text-blue-600 dark:text-blue-400" />
         <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE</span>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         {/* Toujours visible */}
         <NavItem icon={FolderKanban} label="Changer Projet" to="/select-project" /> 
-        {/* Liens projet (désactivés si aucun projet sélectionné) */}
-        <NavItem icon={LayoutDashboard} label="Tableau de bord" to={projectUrl('dashboard')} disabled={true} />
+        {/* Liens projet */}
+        <NavItem icon={LayoutDashboard} label="Tableau de bord" to={projectUrl('dashboard')} disabled={!projectId} />
         
         <div className="pt-4 mt-4 border-t dark:border-gray-700">
           <h3 className={`px-4 mb-2 text-xs font-semibold tracking-wider ${projectId ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'} uppercase`}>
@@ -620,12 +623,12 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
           </h3>
           {isAdmin && (
             <>
-              <NavItem icon={Package} label="Blocs" to={projectUrl('blocks')} disabled={true} />
-              <NavItem icon={Layers} label="Lots & Sous-Lots" to={projectUrl('lots')} disabled={true} />
+              <NavItem icon={Package} label="Blocs" to={projectUrl('blocks')} disabled={!projectId} />
+              <NavItem icon={Layers} label="Lots & Sous-Lots" to={projectUrl('lots')} disabled={!projectId} />
             </>
           )}
-          <NavItem icon={FileText} label="Plans" to={projectUrl('plans')} disabled={true} />
-          <NavItem icon={FileDiff} label="Révisions" to={projectUrl('revisions')} disabled={true} />
+          <NavItem icon={FileText} label="Plans" to={projectUrl('plans')} disabled={!projectId} />
+          <NavItem icon={FileDiff} label="Révisions" to={projectUrl('revisions')} disabled={!projectId} />
         </div>
 
         {/* Section Admin (liens vers /admin/...) */}
@@ -637,7 +640,7 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
           </div>
         )}
       </nav>
-      <div className="px-4 py-4 border-t dark:border-gray-700 flex-shrink-0"> {/* Ajout flex-shrink-0 */}
+      <div className="px-4 py-4 border-t dark:border-gray-700 flex-shrink-0"> 
         <button
           onClick={handleLogout}
           className="flex items-center w-full px-4 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
@@ -654,25 +657,23 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
 // ... (Identique)
 const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selectedProjectId, setSelectedProjectId }) => {
   const navigate = useNavigate();
+  const location = useLocation(); // Pour vérifier si on est dans /admin
 
   const handleProjectSwitch = (e) => {
     const newProjectId = e.target.value;
-    // setSelectedProjectId(newProjectId || null); // Géré par le useEffect dans MainLayout/AdminLayout
     if (newProjectId) {
       navigate(`/project/${newProjectId}/dashboard`); 
     } else {
       // Si on choisit "-- Aucun --", on retourne à la sélection
-      // setSelectedProjectId(null); // S'assure que l'état est null avant la navigation
       navigate('/select-project'); 
     }
   };
 
   return (
-    <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0"> {/* Ajout flex-shrink-0 */}
-      {/* Sélecteur de projet (seulement si dans un layout projet) */}
+    <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0"> 
+      {/* Sélecteur de projet ou Titre Admin */}
       <div className="flex items-center">
-         {/* Condition pour afficher le sélecteur uniquement si un projectId est présent dans l'URL (via selectedProjectId qui est synchronisé) */}
-        {selectedProjectId && userProjects.length > 0 ? (
+        {location.pathname.startsWith('/project/') && selectedProjectId && userProjects.length > 0 ? ( // Affiche si dans un projet ET projet sélectionné
           <>
             <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
             <select
@@ -687,10 +688,9 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selected
               ))}
             </select>
           </>
-        ) : (
-           // Affiche le titre de la section si on est dans /admin/*
-           location.pathname.startsWith('/admin') ? 
-           <span className="text-xl font-semibold text-gray-800 dark:text-gray-100">Administration</span> :
+        ) : location.pathname.startsWith('/admin') ? ( // Affiche si dans admin
+           <span className="text-xl font-semibold text-gray-800 dark:text-gray-100">Administration</span> 
+        ): ( // Cas par défaut (ex: /select-project ou erreur)
            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Sélectionnez un projet</span>
         )}
       </div>
@@ -730,7 +730,8 @@ const PlaceholderPage = ({ title, icon }) => (
 
 // --- Composants de Page ---
 
-// MODIFIÉ: Tableau de bord (affiche stats globales ET projet si sélectionné)
+// Tableau de bord
+// ... (Identique à la version précédente)
 const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers, allBlocks, allLots, allProjects }) => {
   const { projectId } = useParams();
 
@@ -1874,10 +1875,10 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
   
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
-  if (!isAdmin) {
-     // Rediriger vers la page de sélection si pas admin et pas de projet sélectionné, sinon au dashboard
-     return <Navigate to={currentUser ? "/select-project" : "/login"} replace />;
-  }
+  // NOTE: La redirection est maintenant gérée par AdminLayoutWrapper
+  // if (!isAdmin) {
+  //    return <Navigate to={currentUser ? "/select-project" : "/login"} replace />;
+  // }
   
   const openModalToEdit = (user) => {
     setEditingUser(user);
