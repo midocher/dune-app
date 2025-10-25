@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// NOUVEAU: Imports de React Router
-import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation } from 'react-router-dom';
+// Imports de React Router ( useParams ajouté )
+import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
 
 // Import des graphiques
 import { 
@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
   Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye, 
-  ArrowRight, ShieldCheck // NOUVELLES ICÔNES
+  ArrowRight, ShieldCheck, ExternalLink // NOUVELLE ICÔNE
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
@@ -93,7 +93,7 @@ const useDarkMode = () => {
   return [isDarkMode, setIsDarkMode];
 };
 
-// NOUVEAU: Fonction pour charger l'état initial depuis le localStorage
+// Fonction pour charger l'état initial depuis le localStorage
 const loadInitialState = (key, defaultValue) => {
   if (typeof window === 'undefined') {
     return defaultValue;
@@ -107,7 +107,7 @@ const loadInitialState = (key, defaultValue) => {
   }
 };
 
-// NOUVEAU: Hook pour synchroniser l'état avec le localStorage
+// Hook pour synchroniser l'état avec le localStorage
 const useLocalStorageState = (key, defaultValue) => {
   const [state, setState] = useState(() => loadInitialState(key, defaultValue));
 
@@ -120,17 +120,17 @@ const useLocalStorageState = (key, defaultValue) => {
   return [state, setState];
 };
 
-// Composant principal
+// --- Composant Racine ---
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useDarkMode();
   
-  // États de l'application
+  // États Globaux
   const [currentUser, setCurrentUser] = useLocalStorageState('dune-user', null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!loadInitialState('dune-user', null));
-  const [userProjects, setUserProjects] = useLocalStorageState('dune-userProjects', []); // Projets filtrés pour l'utilisateur
-  const [selectedProjectId, setSelectedProjectId] = useLocalStorageState('dune-selectedProjectId', null);
+  const [userProjects, setUserProjects] = useLocalStorageState('dune-userProjects', []); // Projets accessibles par l'utilisateur
+  const [selectedProjectId, setSelectedProjectId] = useLocalStorageState('dune-selectedProjectId', null); // Projet actuellement actif
   
-  // Listes de données maîtresses (simulant la BDD)
+  // Listes de données maîtresses (simulant la BDD) - utilisent useState simple car non persistées entre sessions
   const [allProjects, setAllProjects] = useState(mockProjects);
   const [allBlocks, setAllBlocks] = useState(mockBlocksInit);
   const [allLots, setAllLots] = useState(mockLotsInit);
@@ -139,7 +139,7 @@ export default function App() {
   
   const navigate = useNavigate();
 
-  // Mémorisation du projet sélectionné
+  // Mémorisation du projet sélectionné (basé sur les projets *accessibles*)
   const selectedProject = useMemo(() => {
     return userProjects.find(p => p.id === selectedProjectId);
   }, [userProjects, selectedProjectId]);
@@ -154,18 +154,15 @@ export default function App() {
 
       let filteredProjects = [];
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
-        filteredProjects = allProjects; // Admins voient tout
+        filteredProjects = allProjects; 
       } else if (user.role === 'Ingénieur de suivi' || user.role === 'Visiteur') {
-        // Ingénieurs voient leurs projets + projets visiteurs
         filteredProjects = allProjects.filter(p => p.id_responsable === user.id || p.acces_visiteur === true); 
       }
       
-      setUserProjects(filteredProjects); // Sauvegarde les projets *filtrés*
-
-      // Ne pas auto-sélectionner un projet, forcer l'utilisateur à choisir
-      setSelectedProjectId(null);
+      setUserProjects(filteredProjects);
+      setSelectedProjectId(null); // Force la sélection
       
-      navigate('/projects'); // CORRECTION: Rediriger vers la sélection de projet
+      navigate('/select-project'); // NOUVEAU: Rediriger vers la sélection de projet
     } else {
       console.error("Identifiants incorrects");
     }
@@ -185,25 +182,51 @@ export default function App() {
     }
     navigate('/login'); 
   };
+  
+  // Fonction pour activer un projet
+  const handleSelectProject = (projectId) => {
+    setSelectedProjectId(projectId);
+    navigate(`/project/${projectId}/dashboard`); // Navigue vers le dashboard du projet
+  };
 
   return (
-    <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans`}>
+    <div className={`h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans`}>
       <Routes>
         <Route
           path="/login"
-          element={<LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} />}
+          element={!isAuthenticated ? <LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} /> : <Navigate to="/select-project" replace />}
         />
         
-        <Route
-          path="/*" 
+        {/* NOUVELLE: Route pour la sélection de projet */}
+        <Route 
+          path="/select-project"
           element={
             isAuthenticated ? (
+              <ProjectSelectionPage 
+                userProjects={userProjects} 
+                onSelectProject={handleSelectProject} 
+                handleLogout={handleLogout}
+                currentUser={currentUser}
+                isDarkMode={isDarkMode}
+                setIsDarkMode={setIsDarkMode}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        {/* NOUVELLE: Route pour le layout principal de gestion de projet */}
+        <Route
+          path="/project/:projectId/*" 
+          element={
+            isAuthenticated && selectedProjectId ? ( // Assure qu'un projet est sélectionné
               <MainLayout
                 isDarkMode={isDarkMode}
                 setIsDarkMode={setIsDarkMode}
                 currentUser={currentUser}
                 handleLogout={handleLogout}
-                userProjects={userProjects} // Projets filtrés
+                userProjects={userProjects} 
                 selectedProjectId={selectedProjectId}
                 setSelectedProjectId={setSelectedProjectId}
                 // Données CUD
@@ -213,57 +236,165 @@ export default function App() {
                   allLots, setAllLots,
                   allPlans, setAllPlans,
                   allUsers, setAllUsers,
-                  selectedProject,
-                  userProjects, // Passer aussi les projets filtrés
+                  selectedProject, // Le projet actuellement sélectionné
+                  userProjects, // Les projets accessibles par l'utilisateur
                   isDarkMode,
                   currentUser
                 }}
               />
-            ) : (
+            ) : isAuthenticated ? ( // Si authentifié mais pas de projet sélectionné
+               <Navigate to="/select-project" replace />
+            ) : ( // Si pas authentifié
               <Navigate to="/login" replace /> 
             )
           }
         />
+        
+        {/* Route par défaut (si déjà connecté, va à la sélection, sinon au login) */}
+        <Route path="*" element={<Navigate to={isAuthenticated ? "/select-project" : "/login"} replace />} />
+
       </Routes>
     </div>
   );
 }
 
-// --- NOUVEAU: Composant Layout Principal ---
+// --- NOUVEAU: Page de Sélection de Projet ---
+const ProjectSelectionPage = ({ userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode }) => {
+  return (
+    <div className="flex flex-col h-screen">
+      {/* Header simplifié */}
+      <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
+         <div className="flex items-center">
+            <Building className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+            <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE - Sélection</span>
+         </div>
+         <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+             <div className="flex items-center">
+              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                {currentUser?.username.substring(0, 2).toUpperCase()}
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{currentUser?.username}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{currentUser?.role}</p>
+              </div>
+            </div>
+             <button
+              onClick={handleLogout}
+              className="flex items-center px-3 py-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+            >
+              <LogOut className="w-5 h-5 mr-2" />
+              <span>Déconnexion</span>
+            </button>
+         </div>
+      </header>
+      {/* Contenu */}
+      <main className="flex-1 overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">Choisissez un projet à ouvrir</h1>
+        {userProjects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {userProjects.map(project => (
+              <div key={project.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 flex flex-col justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{project.nom}</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{project.abreviation}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{project.commune}, {project.wilaya}</p>
+                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    project.statut === 'en étude' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                    project.statut === 'en exécution' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                    project.statut === 'achevé' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  }`}>
+                    {project.statut}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => onSelectProject(project.id)}
+                  className="mt-6 w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+                >
+                  Ouvrir <ArrowRight className="w-4 h-4 ml-2" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-gray-500 dark:text-gray-400">Aucun projet ne vous est actuellement assigné.</p>
+        )}
+      </main>
+    </div>
+  );
+};
+
+// --- Composant Layout Principal ---
 const MainLayout = ({ 
   isDarkMode, setIsDarkMode, currentUser, handleLogout, 
   userProjects, selectedProjectId, setSelectedProjectId,
   appData
 }) => {
+  // NOUVEAU: Récupérer projectId depuis l'URL
+  const { projectId } = useParams();
+  const navigate = useNavigate();
+
+  // NOUVEAU: Vérifier si le projectId de l'URL est valide pour l'utilisateur
+  useEffect(() => {
+    if (projectId && !userProjects.some(p => p.id === projectId)) {
+      // Si l'URL contient un ID de projet invalide, rediriger vers la sélection
+      setSelectedProjectId(null); // Désélectionner au cas où
+      navigate('/select-project', { replace: true });
+    } else if (projectId && projectId !== selectedProjectId) {
+       // Si l'URL a un ID valide mais différent de l'état, synchroniser l'état
+       setSelectedProjectId(projectId);
+    } else if (!projectId && selectedProjectId) {
+      // Si l'URL n'a plus d'ID mais qu'un projet est sélectionné (ex: via le dropdown),
+      // naviguer vers la page de sélection (car le header a mis selectedProjectId à null)
+       navigate('/select-project', { replace: true });
+    }
+  }, [projectId, userProjects, navigate, selectedProjectId, setSelectedProjectId]);
+
+  // Si le projetId de l'URL n'est pas (encore) valide ou synchronisé, ne rien afficher
+  if (!selectedProjectId || selectedProjectId !== projectId) {
+    // Ou afficher un indicateur de chargement
+    return <div className="flex items-center justify-center h-screen">Chargement du projet...</div>; 
+  }
+
+  // Injecter projectId dans les données passées aux pages
+  const pageProps = { ...appData, selectedProjectId: projectId };
+
   return (
     <>
       <Sidebar 
         handleLogout={handleLogout}
         currentUser={currentUser}
-        projectSelected={!!selectedProjectId} // NOUVEAU: Savoir si un projet est actif
+        projectId={projectId} // NOUVEAU: Passer l'ID du projet pour les liens
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           isDarkMode={isDarkMode} 
           setIsDarkMode={setIsDarkMode} 
           currentUser={currentUser}
-          userProjects={userProjects} // Renommé pour plus de clarté
+          userProjects={userProjects} 
           selectedProjectId={selectedProjectId}
-          setSelectedProjectId={setSelectedProjectId}
+          setSelectedProjectId={setSelectedProjectId} // Garder pour le switch rapide
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+          {/* NOUVEAU: Routes imbriquées sous /project/:projectId/ */}
           <Routes>
-            {/* CORRECTION: La route /projects est la page principale de sélection */}
-            <Route index element={<Navigate to="/projects" replace />} />
-            <Route path="dashboard" element={selectedProjectId ? <DashboardPage isDarkMode={appData.isDarkMode} /> : <Navigate to="/projects" replace />} />
-            <Route path="projects" element={<ProjectsPage {...appData} setSelectedProjectId={setSelectedProjectId} />} />
-            <Route path="plans" element={selectedProjectId ? <PlansPage {...appData} /> : <Navigate to="/projects" replace />} />
-            <Route path="blocks" element={selectedProjectId ? <BlocksPage {...appData} /> : <Navigate to="/projects" replace />} />
-            <Route path="lots" element={selectedProjectId ? <LotsPage {...appData} /> : <Navigate to="/projects" replace />} />
-            <Route path="revisions" element={selectedProjectId ? <RevisionsPage {...appData} /> : <Navigate to="/projects" replace />} />
-            <Route path="users" element={<UsersPage {...appData} currentUser={currentUser} />} />
+            <Route index element={<Navigate to="dashboard" replace />} /> {/* /project/:id/ -> /project/:id/dashboard */}
+            <Route path="dashboard" element={<DashboardPage isDarkMode={pageProps.isDarkMode} />} />
+            {/* La route /projects n'est plus accessible ici */}
+            <Route path="plans" element={<PlansPage {...pageProps} />} />
+            <Route path="blocks" element={<BlocksPage {...pageProps} />} />
+            <Route path="lots" element={<LotsPage {...pageProps} />} />
+            <Route path="revisions" element={<RevisionsPage {...pageProps} />} />
+            {/* L'accès à Users/Settings dépend toujours du rôle, géré dans le composant lui-même */}
+            <Route path="users" element={<UsersPage {...pageProps} />} />
             <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} />
-            <Route path="*" element={<Navigate to="/projects" replace />} /> 
+            <Route path="*" element={<Navigate to="dashboard" replace />} /> {/* Route inconnue dans un projet -> dashboard */}
           </Routes>
         </main>
       </div>
@@ -275,6 +406,7 @@ const MainLayout = ({
 // --- Composants de l'interface ---
 
 // Écran de connexion
+// ... (Identique)
 const LoginScreen = ({ onLogin, isDarkMode }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -337,17 +469,21 @@ const LoginScreen = ({ onLogin, isDarkMode }) => {
 };
 
 // Barre latérale
-const Sidebar = ({ handleLogout, currentUser, projectSelected }) => {
+const Sidebar = ({ handleLogout, currentUser, projectId }) => { // MODIFIÉ: reçoit projectId
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const location = useLocation(); 
 
+  // NOUVEAU: Fonction pour créer l'URL du projet
+  const projectUrl = (path) => `/project/${projectId}/${path}`;
+
   const NavItem = ({ icon, label, to, disabled = false }) => {
-    const isActive = location.pathname === to;
-    const isDisabled = disabled && !projectSelected;
+    // Vérifie si le chemin actuel commence par 'to' (pour gérer les sous-routes)
+    const isActive = location.pathname.startsWith(to); 
+    const isDisabled = disabled && !projectId; // Désactivé si pas de projetId
 
     return (
       <Link
-        to={isDisabled ? "#" : to} // Ne navigue pas si désactivé
+        to={isDisabled ? "#" : to} 
         className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
           isActive && !isDisabled
             ? 'bg-blue-600 text-white'
@@ -369,32 +505,34 @@ const Sidebar = ({ handleLogout, currentUser, projectSelected }) => {
         <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE</span>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        <NavItem icon={FolderKanban} label="Projets" to="/projects" />
-        {/* CORRECTION: Désactiver les liens si aucun projet n'est sélectionné */}
-        <NavItem icon={LayoutDashboard} label="Tableau de bord" to="/dashboard" disabled={true} />
+        {/* MODIFIÉ: Ce lien retourne à la sélection */}
+        <NavItem icon={FolderKanban} label="Changer Projet" to="/select-project" /> 
+        <NavItem icon={LayoutDashboard} label="Tableau de bord" to={projectUrl('dashboard')} disabled={true} />
         
         {/* Section spécifique au projet */}
         <div className="pt-4 mt-4 border-t dark:border-gray-700">
-          <h3 className={`px-4 mb-2 text-xs font-semibold tracking-wider ${projectSelected ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'} uppercase`}>
-            Gestion du projet {projectSelected ? '' : '(Sélectionnez un projet)'}
+          <h3 className={`px-4 mb-2 text-xs font-semibold tracking-wider ${projectId ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'} uppercase`}>
+            Gestion du projet {projectId ? '' : '(Sélectionnez un projet)'}
           </h3>
           
           {isAdmin && (
             <>
-              <NavItem icon={Package} label="Blocs" to="/blocks" disabled={true} />
-              <NavItem icon={Layers} label="Lots & Sous-Lots" to="/lots" disabled={true} />
+              {/* MODIFIÉ: Liens utilisent projectUrl */}
+              <NavItem icon={Package} label="Blocs" to={projectUrl('blocks')} disabled={true} />
+              <NavItem icon={Layers} label="Lots & Sous-Lots" to={projectUrl('lots')} disabled={true} />
             </>
           )}
           
-          <NavItem icon={FileText} label="Plans" to="/plans" disabled={true} />
-          <NavItem icon={FileDiff} label="Révisions" to="/revisions" disabled={true} />
+          <NavItem icon={FileText} label="Plans" to={projectUrl('plans')} disabled={true} />
+          <NavItem icon={FileDiff} label="Révisions" to={projectUrl('revisions')} disabled={true} />
         </div>
 
         {/* Section Admin */}
         {isAdmin && (
           <div className="pt-4 mt-4 border-t dark:border-gray-700">
             <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Administration</h3>
-            <NavItem icon={UserCog} label="Utilisateurs" to="/users" />
+            {/* MODIFIÉ: Liens directs car non liés à un projet */}
+            <NavItem icon={UserCog} label="Utilisateurs" to="/users" /> 
             <NavItem icon={Wrench} label="Paramètres" to="/settings" />
           </div>
         )}
@@ -414,18 +552,30 @@ const Sidebar = ({ handleLogout, currentUser, projectSelected }) => {
 
 // En-tête
 const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selectedProjectId, setSelectedProjectId }) => {
+  const navigate = useNavigate();
+
+  // NOUVEAU: Gérer le changement de projet via le dropdown
+  const handleProjectSwitch = (e) => {
+    const newProjectId = e.target.value;
+    setSelectedProjectId(newProjectId || null);
+    if (newProjectId) {
+      navigate(`/project/${newProjectId}/dashboard`); // Navigue vers le nouveau projet
+    } else {
+      navigate('/select-project'); // Retourne à la sélection si "-- Aucun --"
+    }
+  };
+
   return (
     <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
       {/* Sélecteur de projet */}
       <div className="flex items-center">
-        {/* CORRECTION: Le sélecteur de projet est maintenant un 'changeur' de projet */}
         {userProjects.length > 0 ? (
           <>
             <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
             <select
               id="project-select"
-              value={selectedProjectId || ''} // Gère le cas où 'null' est la valeur
-              onChange={(e) => setSelectedProjectId(e.target.value || null)} // Permet de désélectionner
+              value={selectedProjectId || ''} 
+              onChange={handleProjectSwitch} // Utilise la nouvelle fonction
               className="w-64 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               <option value="">-- Aucun (Retour à la liste) --</option>
@@ -474,6 +624,7 @@ const PlaceholderPage = ({ title, icon }) => (
 // --- Composants de Page (Exemples) ---
 
 // Tableau de bord
+// ... (Identique)
 const DashboardPage = ({ isDarkMode }) => {
   // ... (Identique à la version précédente)
   const pieData = [
@@ -554,6 +705,7 @@ const DashboardPage = ({ isDarkMode }) => {
 };
 
 // NOUVEAU: Page Projets (avec CUD)
+// ... (Identique à la version précédente)
 const ProjectsPage = ({ currentUser, userProjects, allProjects, setAllProjects, allUsers, setSelectedProjectId }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -616,7 +768,7 @@ const ProjectsPage = ({ currentUser, userProjects, allProjects, setAllProjects, 
   
   const handleSelectProject = (projectId) => {
     setSelectedProjectId(projectId);
-    navigate('/dashboard');
+    navigate(`/project/${projectId}/dashboard`);
   };
 
   return (
@@ -885,12 +1037,14 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
 // Page Plans
 const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser }) => { 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+  const { projectId } = useParams(); // Récupérer l'ID depuis l'URL
 
-  if (!selectedProject) {
-    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  // Vérifier si un projet est sélectionné (via l'URL maintenant)
+  if (!projectId || !selectedProject || selectedProject.id !== projectId) {
+     return <Navigate to="/select-project" replace />; // Rediriger si incohérent
   }
   
-  const projectPlans = plans.filter(p => p.id_projet === selectedProject.id);
+  const projectPlans = plans.filter(p => p.id_projet === projectId);
 
   const getStatusIcon = (statut) => {
     switch (statut) {
@@ -998,7 +1152,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
 };
 
 // --- NOUVEAU: Modal Générique ---
-// ... (Identique à la version précédente)
+// ... (Identique)
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
@@ -1022,8 +1176,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- NOUVEAU: Formulaire pour les Blocs ---
-// ... (Identique à la version précédente)
+// --- Formulaire pour les Blocs ---
+// ... (Identique)
 const BlockForm = ({ block, onSave, onCancel }) => {
   const [nom, setNom] = useState(block ? block.nom : '');
   const [abreviation, setAbreviation] = useState(block ? block.abreviation : '');
@@ -1082,23 +1236,22 @@ const BlockForm = ({ block, onSave, onCancel }) => {
 };
 
 
-// NOUVEAU: Page Blocs (avec CUD)
-// ... (Identique à la version précédente)
+// Page Blocs (avec CUD)
 const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState(null); // null = nouveau, objet = modification
+  const [editingBlock, setEditingBlock] = useState(null); 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+  const { projectId } = useParams();
 
-  if (!selectedProject) {
-    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  if (!selectedProject || selectedProject.id !== projectId) {
+     return <Navigate to="/select-project" replace />;
   }
   
-  // CORRECTION: Sécurité, les non-admins ne devraient pas voir cette page
   if (!isAdmin) {
-     return <Navigate to="/dashboard" replace />;
+     return <Navigate to={`/project/${projectId}/dashboard`} replace />; // Redirige les non-admins vers le dashboard
   }
 
-  const projectBlocks = allBlocks.filter(b => b.id_projet === selectedProject.id);
+  const projectBlocks = allBlocks.filter(b => b.id_projet === projectId);
 
   const openModalToEdit = (block) => {
     setEditingBlock(block);
@@ -1117,14 +1270,12 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
 
   const handleSave = (blockData) => {
     if (editingBlock) {
-      // Modification
       setAllBlocks(allBlocks.map(b => b.id === editingBlock.id ? { ...b, ...blockData } : b));
     } else {
-      // Création
       const newBlock = {
         ...blockData,
-        id: 'b' + Date.now(), // ID unique simple
-        id_projet: selectedProject.id
+        id: 'b' + Date.now(), 
+        id_projet: projectId // Utilise projectId de l'URL
       };
       setAllBlocks([...allBlocks, newBlock]);
     }
@@ -1132,7 +1283,6 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
   };
 
   const handleDelete = (blockId) => {
-    // Remplacer par une confirmation modale dans une future version
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce bloc ?")) {
       setAllBlocks(allBlocks.filter(b => b.id !== blockId));
     }
@@ -1195,8 +1345,8 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
   );
 };
 
-// --- NOUVEAU: Formulaire pour les Lots ---
-// ... (Identique à la version précédente)
+// --- Formulaire pour les Lots ---
+// ... (Identique)
 const LotForm = ({ lot, onSave, onCancel }) => {
   const [nom, setNom] = useState(lot ? lot.nom : '');
   const [abreviation, setAbreviation] = useState(lot ? lot.abreviation : '');
@@ -1334,23 +1484,22 @@ const LotForm = ({ lot, onSave, onCancel }) => {
 };
 
 
-// NOUVEAU: Page Lots (avec CUD)
-// ... (Identique à la version précédente)
+// Page Lots (avec CUD)
 const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingLot, setEditingLot] = useState(null); // null = nouveau, objet = modification
+  const [editingLot, setEditingLot] = useState(null); 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+  const { projectId } = useParams();
 
-  if (!selectedProject) {
-    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  if (!selectedProject || selectedProject.id !== projectId) {
+     return <Navigate to="/select-project" replace />;
   }
 
-  // CORRECTION: Sécurité, les non-admins ne devraient pas voir cette page
   if (!isAdmin) {
-     return <Navigate to="/dashboard" replace />;
+     return <Navigate to={`/project/${projectId}/dashboard`} replace />;
   }
   
-  const projectLots = allLots.filter(l => l.id_projet === selectedProject.id);
+  const projectLots = allLots.filter(l => l.id_projet === projectId);
 
   const openModalToEdit = (lot) => {
     setEditingLot(lot);
@@ -1369,14 +1518,12 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   
   const handleSave = (lotData) => {
     if (editingLot) {
-      // Modification
       setAllLots(allLots.map(l => l.id === editingLot.id ? { ...l, ...lotData } : l));
     } else {
-      // Création
       const newLot = {
         ...lotData,
-        id: 'l' + Date.now(), // ID unique simple
-        id_projet: selectedProject.id
+        id: 'l' + Date.now(), 
+        id_projet: projectId
       };
       setAllLots([...allLots, newLot]);
     }
@@ -1388,7 +1535,6 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
       setAllLots(allLots.filter(l => l.id !== lotId));
     }
   };
-
 
   return (
     <div className="space-y-6">
@@ -1463,13 +1609,16 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   );
 };
 
-// NOUVEAU: Page Révisions
+// Page Révisions
 const RevisionsPage = ({ selectedProject, plans }) => {
-  if (!selectedProject) {
-    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  const { projectId } = useParams();
+  
+  if (!selectedProject || selectedProject.id !== projectId) {
+     return <Navigate to="/select-project" replace />;
   }
+  
   const allRevisions = plans
-    .filter(p => p.id_projet === selectedProject.id)
+    .filter(p => p.id_projet === projectId)
     .flatMap(plan => 
       plan.historique.map(rev => ({
         ...rev,
@@ -1513,7 +1662,8 @@ const RevisionsPage = ({ selectedProject, plans }) => {
   );
 };
 
-// NOUVEAU: Formulaire Utilisateur
+// Formulaire Utilisateur
+// ... (Identique)
 const UserForm = ({ user, onSave, onCancel }) => {
   const [username, setUsername] = useState(user ? user.username : '');
   const [password, setPassword] = useState(''); // Toujours vide pour la sécurité
@@ -1570,7 +1720,8 @@ const UserForm = ({ user, onSave, onCancel }) => {
 };
 
 
-// NOUVEAU: Page Utilisateurs (avec CUD)
+// Page Utilisateurs (avec CUD)
+// ... (Identique)
 const UsersPage = ({ currentUser, allUsers, setAllUsers }) => { 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -1578,7 +1729,8 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!isAdmin) {
-     return <Navigate to="/dashboard" replace />;
+     // Rediriger vers la page de sélection si pas admin et pas de projet sélectionné, sinon au dashboard
+     return <Navigate to={currentUser ? "/select-project" : "/login"} replace />;
   }
   
   const openModalToEdit = (user) => {
