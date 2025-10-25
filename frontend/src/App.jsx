@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// CORRECTION: Import des graphiques depuis 'recharts'
+// NOUVEAU: Imports de React Router
+import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation } from 'react-router-dom';
+
+// Import des graphiques
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
-// CORRECTION: Import des icônes SEULEMENT depuis 'lucide-react'
+// Import des icônes
 import { 
   LayoutDashboard, FolderKanban, FileText, Settings, Users, Building, MapPin, 
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
-  Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash // NOUVELLES ICÔNES
+  Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye // NOUVELLE ICÔNE
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
@@ -33,32 +36,29 @@ const mockUsers = [
 ];
 
 const mockProjects = [
-  // MODIFIÉ: 'ing.suivi' (u3) est responsable de p1 et p2
   { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", id_responsable: 'u3', statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
   { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", id_responsable: 'u3', statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
-  // MODIFIÉ: 'admin.secondaire' (u2) est responsable de p3
   { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", id_responsable: 'u2', statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
 ];
 
-const mockLotsInit = [ // Renommé en Init
+const mockLotsInit = [ 
   { id: 'l1', id_projet: 'p1', nom: 'Architecture', abreviation: 'ARCH', ctc_approbation: true, sousLots: [{ id: 'sl1', nom: 'Plans de masse', abreviation: 'PM' }] },
   { id: 'l2', id_projet: 'p1', nom: 'Génie Civil', abreviation: 'GCIV', ctc_approbation: true, sousLots: [] },
   { id: 'l3', id_projet: 'p1', nom: 'Électricité', abreviation: 'ELEC', ctc_approbation: false, sousLots: [{ id: 'sl2', nom: 'Courants Forts', abreviation: 'CF' }, { id: 'sl3', nom: 'Courants Faibles', abreviation: 'Cf' }] },
   { id: 'l4', id_projet: 'p2', nom: 'Architecture', abreviation: 'ARCH', ctc_approbation: true, sousLots: [] },
 ];
 
-const mockBlocksInit = [ // Renommé en Init
+const mockBlocksInit = [ 
   { id: 'b1', id_projet: 'p1', nom: 'Administration', abreviation: 'ADM' },
   { id: 'b2', id_projet: 'p1', nom: 'Hébergement', abreviation: 'HEB' },
   { id: 'b3', id_projet: 'p2', nom: 'Restaurant', abreviation: 'REST' },
 ];
 
-const mockPlansInit = [ // Renommé en Init
+const mockPlansInit = [ 
   { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "sim-plan-a.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
   { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
   { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
 ];
-
 // --- Fin des Données de Simulation ---
 
 
@@ -86,23 +86,52 @@ const useDarkMode = () => {
   return [isDarkMode, setIsDarkMode];
 };
 
+// NOUVEAU: Fonction pour charger l'état initial depuis le localStorage
+const loadInitialState = (key, defaultValue) => {
+  if (typeof window === 'undefined') {
+    return defaultValue;
+  }
+  try {
+    const item = window.localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.error(`Erreur lors du chargement de ${key} depuis localStorage`, error);
+    return defaultValue;
+  }
+};
+
+// NOUVEAU: Hook pour synchroniser l'état avec le localStorage
+const useLocalStorageState = (key, defaultValue) => {
+  const [state, setState] = useState(() => loadInitialState(key, defaultValue));
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state]);
+
+  return [state, setState];
+};
+
 // Composant principal
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('login');
   const [isDarkMode, setIsDarkMode] = useDarkMode();
-
-  // État de l'application
-  const [projects, setProjects] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(null);
   
-  // NOUVEAU: Les données sont dans l'état de l'App
+  // NOUVEAU: Utilisation du hook de localStorage
+  const [currentUser, setCurrentUser] = useLocalStorageState('dune-user', null);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!loadInitialState('dune-user', null));
+  const [projects, setProjects] = useLocalStorageState('dune-projects', []);
+  const [selectedProjectId, setSelectedProjectId] = useLocalStorageState('dune-selectedProjectId', null);
+  
+  // Les données CUD utilisent toujours l'état React simple, elles seront rechargées au login
+  // Ou pour une version complète, elles devraient être dans leur propre hook localStorage
   const [blocks, setBlocks] = useState(mockBlocksInit);
   const [lots, setLots] = useState(mockLotsInit);
   const [plans, setPlans] = useState(mockPlansInit);
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState(mockUsers); // La liste des utilisateurs reste en mémoire
   
+  const navigate = useNavigate();
+
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
     return projects.find(p => p.id === selectedProjectId);
@@ -110,33 +139,28 @@ export default function App() {
   
   // Logique de login complète
   const handleLogin = (username, password) => {
-    // 1. Authentification de l'utilisateur
     const user = users.find(u => u.username === username && u.password === password);
     
     if (user) {
-      setCurrentUser(user);
+      setCurrentUser(user); // Sauvegarde dans localStorage
       setIsAuthenticated(true);
-      setCurrentPage('dashboard');
 
-      // 2. Filtrage des projets basé sur le rôle
       let userProjects = [];
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
-        // Les admins voient TOUS les projets
-        userProjects = mockProjects; // Utilise la liste statique complète
-      } else if (user.role === 'Ingénieur de suivi') {
-        // Les ingénieurs ne voient que LEURS projets
-        userProjects = mockProjects.filter(p => p.id_responsable === user.id);
+        userProjects = mockProjects; 
+      } else if (user.role === 'Ingénieur de suivi' || user.role === 'Visiteur') { // MODIFIÉ: Visiteur inclus
+        userProjects = mockProjects.filter(p => p.id_responsable === user.id || p.acces_visiteur === true); // Logique simplifiée
       }
       
-      setProjects(userProjects);
+      setProjects(userProjects); // Sauvegarde dans localStorage
 
-      // 3. Sélectionner le premier projet de la liste filtrée par défaut
       if (userProjects.length > 0) {
-        setSelectedProjectId(userProjects[0].id);
+        setSelectedProjectId(userProjects[0].id); // Sauvegarde dans localStorage
       } else {
         setSelectedProjectId(null);
       }
-
+      
+      navigate('/dashboard'); // NOUVEAU: Redirection après connexion
     } else {
       console.error("Identifiants incorrects");
     }
@@ -146,59 +170,101 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
-    setCurrentPage('login');
-    setProjects([]); // Vider les projets
-    setSelectedProjectId(null); // Vider la sélection
+    setProjects([]); 
+    setSelectedProjectId(null);
+    // NOUVEAU: Nettoyage explicite du localStorage
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('dune-user');
+      window.localStorage.removeItem('dune-projects');
+      window.localStorage.removeItem('dune-selectedProjectId');
+    }
+    navigate('/login'); // NOUVEAU: Redirection vers le login
   };
-
-  if (currentPage === 'login') {
-    return <LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} />;
-  }
 
   return (
     <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans`}>
-      {/* Barre latérale */}
+      {/* NOUVEAU: Le routage gère l'affichage */}
+      <Routes>
+        <Route
+          path="/login"
+          element={<LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} />}
+        />
+        
+        {/* NOUVEAU: Route protégée pour le layout principal */}
+        <Route
+          path="/*" // Intercepte toutes les autres routes
+          element={
+            isAuthenticated ? (
+              <MainLayout
+                isDarkMode={isDarkMode}
+                setIsDarkMode={setIsDarkMode}
+                currentUser={currentUser}
+                handleLogout={handleLogout}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                setSelectedProjectId={setSelectedProjectId}
+                // Props CUD pour l'Outlet
+                appData={{
+                  blocks, setBlocks,
+                  lots, setLots,
+                  plans, setPlans,
+                  users, setUsers,
+                  selectedProject,
+                  isDarkMode,
+                  currentUser // CORRECTION: Passer currentUser à appData
+                }}
+              />
+            ) : (
+              <Navigate to="/login" replace /> // Redirige vers /login si non authentifié
+            )
+          }
+        />
+      </Routes>
+    </div>
+  );
+}
+
+// --- NOUVEAU: Composant Layout Principal ---
+const MainLayout = ({ 
+  isDarkMode, setIsDarkMode, currentUser, handleLogout, 
+  projects, selectedProjectId, setSelectedProjectId,
+  appData
+}) => {
+  return (
+    <>
       <Sidebar 
-        currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} 
         handleLogout={handleLogout}
         currentUser={currentUser}
       />
-
-      {/* Contenu principal */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* En-tête */}
         <Header 
           isDarkMode={isDarkMode} 
           setIsDarkMode={setIsDarkMode} 
           currentUser={currentUser}
-          projects={projects} // Transmission de la liste de projets filtrée
+          projects={projects}
           selectedProjectId={selectedProjectId}
           setSelectedProjectId={setSelectedProjectId}
         />
-
-        {/* Zone de contenu défilable */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
-          <PageContent 
-            page={currentPage} 
-            currentUser={currentUser} 
-            selectedProject={selectedProject}
-            isDarkMode={isDarkMode}
-            // MODIFIÉ: Transmission de toutes les données et de leurs setters
-            blocks={blocks}
-            setBlocks={setBlocks}
-            lots={lots}
-            setLots={setLots}
-            plans={plans}
-            setPlans={setPlans}
-            users={users}
-            setUsers={setUsers}
-          />
+          {/* NOUVEAU: Routes imbriquées pour le contenu de la page */}
+          <Routes>
+            <Route index element={<Navigate to="/dashboard" replace />} /> {/* Redirige / vers /dashboard */}
+            <Route path="dashboard" element={<DashboardPage isDarkMode={appData.isDarkMode} />} />
+            <Route path="projects" element={<ProjectsPage currentUser={currentUser} />} /> {/* CORRECTION: Passer currentUser */}
+            <Route path="plans" element={<PlansPage {...appData} />} />
+            <Route path="blocks" element={<BlocksPage {...appData} />} />
+            <Route path="lots" element={<LotsPage {...appData} />} />
+            <Route path="revisions" element={<RevisionsPage {...appData} />} />
+            <Route path="users" element={<UsersPage {...appData} currentUser={currentUser} />} />
+            <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} /> {/* Redirige toute route inconnue */}
+          </Routes>
         </main>
       </div>
-    </div>
+    </>
   );
-}
+};
+
 
 // --- Composants de l'interface ---
 
@@ -265,22 +331,28 @@ const LoginScreen = ({ onLogin, isDarkMode }) => {
 };
 
 // Barre latérale
-const Sidebar = ({ currentPage, setCurrentPage, handleLogout, currentUser }) => {
+const Sidebar = ({ handleLogout, currentUser }) => {
+  // CORRECTION: Logique des rôles
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+  const location = useLocation(); 
 
-  const NavItem = ({ icon, label, pageName }) => (
-    <button
-      onClick={() => setCurrentPage(pageName)}
-      className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
-        currentPage === pageName
-          ? 'bg-blue-600 text-white'
-          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-      }`}
-    >
-      {React.createElement(icon, { className: "w-5 h-5 mr-3" })}
-      <span className="font-medium">{label}</span>
-    </button>
-  );
+  const NavItem = ({ icon, label, to }) => {
+    const isActive = location.pathname === to || (to === '/dashboard' && location.pathname === '/');
+
+    return (
+      <Link
+        to={to}
+        className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
+          isActive
+            ? 'bg-blue-600 text-white'
+            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+        }`}
+      >
+        {React.createElement(icon, { className: "w-5 h-5 mr-3" })}
+        <span className="font-medium">{label}</span>
+      </Link>
+    );
+  };
 
   return (
     <div className="w-64 bg-white dark:bg-gray-800 shadow-lg flex flex-col flex-shrink-0">
@@ -289,24 +361,36 @@ const Sidebar = ({ currentPage, setCurrentPage, handleLogout, currentUser }) => 
         <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE</span>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        <NavItem icon={LayoutDashboard} label="Tableau de bord" pageName="dashboard" />
-        <NavItem icon={FolderKanban} label="Projets" pageName="projects" />
+        <NavItem icon={LayoutDashboard} label="Tableau de bord" to="/dashboard" />
+        <NavItem icon={FolderKanban} label="Projets" to="/projects" />
         
-        {/* Section spécifique au projet */}
-        <div className="pt-4 mt-4 border-t dark:border-gray-700">
-          <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Gestion du projet</h3>
-          <NavItem icon={Package} label="Blocs" pageName="blocks" />
-          <NavItem icon={Layers} label="Lots & Sous-Lots" pageName="lots" />
-          <NavItem icon={FileText} label="Plans" pageName="plans" />
-          <NavItem icon={FileDiff} label="Révisions" pageName="revisions" />
-        </div>
+        {/* CORRECTION: Logique d'affichage du menu basée sur le rôle */}
+        {/* L'admin voit TOUTE la gestion de projet */}
+        {isAdmin && (
+          <div className="pt-4 mt-4 border-t dark:border-gray-700">
+            <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Gestion du projet</h3>
+            <NavItem icon={Package} label="Blocs" to="/blocks" />
+            <NavItem icon={Layers} label="Lots & Sous-Lots" to="/lots" />
+            <NavItem icon={FileText} label="Plans" to="/plans" />
+            <NavItem icon={FileDiff} label="Révisions" to="/revisions" />
+          </div>
+        )}
 
-        {/* Section Admin */}
+        {/* Les autres utilisateurs (Ingénieur/Visiteur) ne voient QUE la consultation */}
+        {!isAdmin && (
+          <div className="pt-4 mt-4 border-t dark:border-gray-700">
+            <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Consultation</h3>
+            <NavItem icon={FileText} label="Plans" to="/plans" />
+            <NavItem icon={FileDiff} label="Révisions" to="/revisions" />
+          </div>
+        )}
+        
+        {/* La section Admin ne change pas */}
         {isAdmin && (
           <div className="pt-4 mt-4 border-t dark:border-gray-700">
             <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Administration</h3>
-            <NavItem icon={UserCog} label="Utilisateurs" pageName="users" />
-            <NavItem icon={Wrench} label="Paramètres" pageName="settings" />
+            <NavItem icon={UserCog} label="Utilisateurs" to="/users" />
+            <NavItem icon={Wrench} label="Paramètres" to="/settings" />
           </div>
         )}
       </nav>
@@ -375,66 +459,14 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
   );
 };
 
-// MODIFIÉ: Routeur de contenu de page complet
-const PageContent = ({ 
-  page, currentUser, selectedProject, isDarkMode, 
-  blocks, setBlocks, lots, setLots, plans, setPlans, users, setUsers
-}) => {
-  
-  // Composant générique pour les pages en construction
-  const PlaceholderPage = ({ title, icon }) => (
-    <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
-      {React.createElement(icon, { className: "w-16 h-16 mb-4" })}
-      <h1 className="text-2xl font-bold mb-2">{title}</h1>
-      <p>Cette page est en cours de construction.</p>
-    </div>
-  );
-
-  switch (page) {
-    case 'dashboard':
-      return <DashboardPage isDarkMode={isDarkMode} />;
-    case 'projects':
-      return <ProjectsPage />; // Page de gestion de TOUS les projets
-    case 'plans':
-      return <PlansPage 
-                selectedProject={selectedProject} 
-                plans={plans} 
-                setPlans={setPlans} 
-                blocks={blocks} 
-                lots={lots} 
-              />;
-    
-    // NOUVEAU: Ajout des autres pages
-    case 'blocks':
-      return <BlocksPage 
-                selectedProject={selectedProject} 
-                blocks={blocks} 
-                setBlocks={setBlocks} 
-              />;
-    case 'lots':
-      return <LotsPage 
-                selectedProject={selectedProject} 
-                lots={lots} 
-                setLots={setLots} 
-              />;
-    case 'revisions':
-      return <RevisionsPage 
-                selectedProject={selectedProject} 
-                plans={plans} 
-              />;
-    case 'users':
-      return <UsersPage 
-                currentUser={currentUser} 
-                users={users} 
-                setUsers={setUsers} 
-              />;
-    case 'settings':
-      return <PlaceholderPage title="Paramètres" icon={Wrench} />;
-      
-    default:
-      return <DashboardPage isDarkMode={isDarkMode} />;
-  }
-};
+// NOUVEAU: Composant Placeholder
+const PlaceholderPage = ({ title, icon }) => (
+  <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+    {React.createElement(icon, { className: "w-16 h-16 mb-4" })}
+    <h1 className="text-2xl font-bold mb-2">{title}</h1>
+    <p>Cette page est en cours de construction.</p>
+  </div>
+);
 
 
 // --- Composants de Page (Exemples) ---
@@ -519,9 +551,10 @@ const DashboardPage = ({ isDarkMode }) => {
 };
 
 // Page Projets
-const ProjectsPage = () => {
-  // Statut pour filtrer la liste des projets
+const ProjectsPage = ({ currentUser }) => {
   const [filter, setFilter] = useState('');
+  // CORRECTION: Logique des rôles
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   
   const getStatusColor = (statut) => {
     switch (statut) {
@@ -537,13 +570,16 @@ const ProjectsPage = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Projets</h1>
-        <button 
-          onClick={() => alert("La création de projet sera ajoutée prochainement.")}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nouveau Projet
-        </button>
+        {/* CORRECTION: Cacher le bouton pour les non-admins */}
+        {isAdmin && (
+          <button 
+            onClick={() => alert("La création de projet sera ajoutée prochainement.")}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nouveau Projet
+          </button>
+        )}
       </div>
       
       {/* Barre de filtre et de recherche */}
@@ -567,13 +603,16 @@ const ProjectsPage = () => {
           <option value="achevé">Achevé</option>
           <option value="suspendu">Suspendu</option>
         </select>
-        <button 
-          onClick={() => alert("L'exportation sera ajoutée prochainement.")}
-          className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-        >
-          <Download className="w-5 h-5 mr-2" />
-          Exporter (PDF/Excel)
-        </button>
+        {/* CORRECTION: Cacher le bouton pour les non-admins */}
+        {isAdmin && (
+          <button 
+            onClick={() => alert("L'exportation sera ajoutée prochainement.")}
+            className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            <Download className="w-5 h-5 mr-2" />
+            Exporter (PDF/Excel)
+          </button>
+        )}
       </div>
 
       {/* Tableau des projets */}
@@ -585,7 +624,10 @@ const ProjectsPage = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Localisation</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Responsable</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
-              <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              {/* CORRECTION: Cacher la colonne Actions pour les non-admins */}
+              {isAdmin && (
+                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -607,21 +649,24 @@ const ProjectsPage = () => {
                     {project.statut}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button 
-                    onClick={() => alert("La modification de projet sera ajoutée prochainement.")}
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                  >
-                    <Edit2 className="w-5 h-5" />
-                  </button>
+                {/* CORRECTION: Cacher les boutons pour les non-admins */}
+                {isAdmin && (
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                    <button 
+                      onClick={() => alert("La modification de projet sera ajoutée prochainement.")}
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
 
-                  <button 
-                    onClick={() => alert("La suppression de projet sera ajoutée prochainement.")}
-                    className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </td>
+                    <button 
+                      onClick={() => alert("La suppression de projet sera ajoutée prochainement.")}
+                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -632,7 +677,9 @@ const ProjectsPage = () => {
 };
 
 // Page Plans
-const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots }) => { // MODIFIÉ: réception des données
+const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser }) => { 
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
@@ -653,13 +700,16 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots }) => { // M
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
-        <button 
-          onClick={() => alert("La création de plan sera ajoutée prochainement.")}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nouveau Plan
-        </button>
+        {/* CORRECTION: Cacher le bouton pour les non-admins */}
+        {isAdmin && (
+          <button 
+            onClick={() => alert("La création de plan sera ajoutée prochainement.")}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nouveau Plan
+          </button>
+        )}
       </div>
 
       {/* Barre de filtre (simplifiée) */}
@@ -669,7 +719,6 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots }) => { // M
           placeholder="Filtrer par référence, titre, lot..."
           className="w-full pl-4 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        {/* Des filtres plus avancés (par Lot, Bloc, Statut) pourraient être ajoutés ici */}
       </div>
 
       {/* Tableau des plans */}
@@ -708,13 +757,26 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots }) => { // M
                   <div className="text-xs text-gray-400">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button 
-                    onClick={() => alert("La gestion des révisions sera ajoutée prochainement.")}
-                    title="Gérer les révisions" 
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                  >
-                    <FileDiff className="w-5 h-5" />
-                  </button>
+                  {/* CORRECTION: Cacher le bouton "Modifier" pour les non-admins */}
+                  {isAdmin && (
+                    <button 
+                      onClick={() => alert("La gestion des révisions sera ajoutée prochainement.")}
+                      title="Gérer les révisions" 
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                    >
+                      <FileDiff className="w-5 h-5" />
+                    </button>
+                  )}
+                  {/* CORRECTION: Afficher "Voir" pour les non-admins */}
+                  {!isAdmin && (
+                    <button 
+                      onClick={() => alert("Affichage de l'historique des révisions...")}
+                      title="Voir les révisions" 
+                      className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                  )}
 
                   <button 
                     onClick={() => navigator.clipboard.writeText(plan.reference)}
@@ -817,12 +879,18 @@ const BlockForm = ({ block, onSave, onCancel }) => {
 
 
 // NOUVEAU: Page Blocs (avec CUD)
-const BlocksPage = ({ selectedProject, blocks, setBlocks }) => {
+const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState(null); // null = nouveau, objet = modification
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
+  }
+  
+  // CORRECTION: Sécurité, les non-admins ne devraient pas voir cette page
+  if (!isAdmin) {
+     return <Navigate to="/dashboard" replace />;
   }
 
   const projectBlocks = blocks.filter(b => b.id_projet === selectedProject.id);
@@ -869,13 +937,16 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Blocs pour : {selectedProject.nom}</h1>
-        <button 
-          onClick={openModalToCreate}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nouveau Bloc
-        </button>
+        {/* CORRECTION: Le bouton est déjà caché par la redirection de page, mais bonne pratique */}
+        {isAdmin && (
+          <button 
+            onClick={openModalToCreate}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nouveau Bloc
+          </button>
+        )}
       </div>
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -883,7 +954,10 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks }) => {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nom</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Abréviation</th>
-              <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              {/* CORRECTION: Cacher la colonne Actions pour les non-admins */}
+              {isAdmin && (
+                <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -891,10 +965,13 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks }) => {
               <tr key={block.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{block.nom}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{block.abreviation}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button onClick={() => openModalToEdit(block)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
-                  <button onClick={() => handleDelete(block.id)} className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
-                </td>
+                {/* CORRECTION: Cacher les boutons pour les non-admins */}
+                {isAdmin && (
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                    <button onClick={() => openModalToEdit(block)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
+                    <button onClick={() => handleDelete(block.id)} className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -1055,14 +1132,20 @@ const LotForm = ({ lot, onSave, onCancel }) => {
 
 
 // NOUVEAU: Page Lots (avec CUD)
-const LotsPage = ({ selectedProject, lots, setLots }) => {
+const LotsPage = ({ selectedProject, lots, setLots, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLot, setEditingLot] = useState(null); // null = nouveau, objet = modification
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
 
+  // CORRECTION: Sécurité, les non-admins ne devraient pas voir cette page
+  if (!isAdmin) {
+     return <Navigate to="/dashboard" replace />;
+  }
+  
   const projectLots = lots.filter(l => l.id_projet === selectedProject.id);
 
   const openModalToEdit = (lot) => {
@@ -1107,13 +1190,15 @@ const LotsPage = ({ selectedProject, lots, setLots }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Lots & Sous-Lots pour : {selectedProject.nom}</h1>
-        <button 
-          onClick={openModalToCreate}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Nouveau Lot
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={openModalToCreate}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Nouveau Lot
+          </button>
+        )}
       </div>
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -1122,7 +1207,9 @@ const LotsPage = ({ selectedProject, lots, setLots }) => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Lot</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Approbation CTC</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Sous-Lots</th>
-              <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              {isAdmin && (
+                <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -1144,10 +1231,12 @@ const LotsPage = ({ selectedProject, lots, setLots }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {lot.sousLots.map(sl => sl.abreviation).join(', ') || 'N/A'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button onClick={() => openModalToEdit(lot)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
-                  <button onClick={() => handleDelete(lot.id)} className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
-                </td>
+                {isAdmin && (
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                    <button onClick={() => openModalToEdit(lot)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
+                    <button onClick={() => handleDelete(lot.id)} className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -1223,7 +1312,7 @@ const RevisionsPage = ({ selectedProject, plans }) => {
 };
 
 // NOUVEAU: Page Utilisateurs
-const UsersPage = ({ currentUser, users, setUsers }) => { // MODIFIÉ: réception de users/setUsers
+const UsersPage = ({ currentUser, users, setUsers }) => { 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!isAdmin) {
