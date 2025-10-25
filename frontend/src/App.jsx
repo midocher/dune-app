@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// CORRECTION: Import des graphiques depuis 'recharts'
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
+} from 'recharts';
+// CORRECTION: Import des icônes SEULEMENT depuis 'lucide-react'
+import { 
   LayoutDashboard, FolderKanban, FileText, Settings, Users, Building, MapPin, 
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download
