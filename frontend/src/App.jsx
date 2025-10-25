@@ -80,7 +80,7 @@ function AuthProvider({ children }) {
 
   // Définir l'URL de base de l'API
   // IMPORTANT : Ceci sera remplacé par l'URL de Render à la Phase 5
-  const API_BASE_URL = 'http://localhost:4000/api/v1';
+  const API_BASE_URL = 'https://dune-app-eui0.onrender.com';
 
   const login = async (username, password) => {
     setLoading(true);

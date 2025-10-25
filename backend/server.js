@@ -9,7 +9,11 @@ const PORT = process.env.PORT || 4000;
 
 // --- Middlewares ---
 // Important : Nous configurerons CORS plus tard
-app.use(cors()); 
+// Autorise seulement votre frontend (défini dans les variables d'environnement de Render)
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173'
+};
+app.use(cors(corsOptions));
 app.use(express.json()); // pour parser le JSON
 
 // --- Routes de l'API (Exemples) ---
