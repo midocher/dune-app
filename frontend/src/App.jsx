@@ -141,8 +141,9 @@ export default function App() {
 
   // Mémorisation du projet sélectionné (basé sur les projets *accessibles*)
   const selectedProject = useMemo(() => {
-    return userProjects.find(p => p.id === selectedProjectId);
-  }, [userProjects, selectedProjectId]);
+    // CORRECTION: Utiliser allProjects pour trouver les détails du projet sélectionné
+    return allProjects.find(p => p.id === selectedProjectId); 
+  }, [allProjects, selectedProjectId]);
   
   // Logique de login
   const handleLogin = (username, password) => {
@@ -162,7 +163,7 @@ export default function App() {
       setUserProjects(filteredProjects);
       setSelectedProjectId(null); // Force la sélection
       
-      navigate('/select-project'); // NOUVEAU: Rediriger vers la sélection de projet
+      navigate('/select-project'); // Rediriger vers la sélection de projet
     } else {
       console.error("Identifiants incorrects");
     }
@@ -197,7 +198,6 @@ export default function App() {
           element={!isAuthenticated ? <LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} /> : <Navigate to="/select-project" replace />}
         />
         
-        {/* NOUVELLE: Route pour la sélection de projet */}
         <Route 
           path="/select-project"
           element={
@@ -216,11 +216,10 @@ export default function App() {
           }
         />
 
-        {/* NOUVELLE: Route pour le layout principal de gestion de projet */}
         <Route
           path="/project/:projectId/*" 
           element={
-            isAuthenticated && selectedProjectId ? ( // Assure qu'un projet est sélectionné
+            isAuthenticated && selectedProjectId ? ( 
               <MainLayout
                 isDarkMode={isDarkMode}
                 setIsDarkMode={setIsDarkMode}
@@ -229,28 +228,27 @@ export default function App() {
                 userProjects={userProjects} 
                 selectedProjectId={selectedProjectId}
                 setSelectedProjectId={setSelectedProjectId}
-                // Données CUD
+                // Données CUD + selectedProject détaillé
                 appData={{
                   allProjects, setAllProjects,
                   allBlocks, setAllBlocks,
                   allLots, setAllLots,
                   allPlans, setAllPlans,
                   allUsers, setAllUsers,
-                  selectedProject, // Le projet actuellement sélectionné
-                  userProjects, // Les projets accessibles par l'utilisateur
+                  selectedProject, // Le projet actuellement sélectionné AVEC TOUS LES DETAILS
+                  userProjects, 
                   isDarkMode,
                   currentUser
                 }}
               />
-            ) : isAuthenticated ? ( // Si authentifié mais pas de projet sélectionné
+            ) : isAuthenticated ? ( 
                <Navigate to="/select-project" replace />
-            ) : ( // Si pas authentifié
+            ) : ( 
               <Navigate to="/login" replace /> 
             )
           }
         />
         
-        {/* Route par défaut (si déjà connecté, va à la sélection, sinon au login) */}
         <Route path="*" element={<Navigate to={isAuthenticated ? "/select-project" : "/login"} replace />} />
 
       </Routes>
@@ -258,7 +256,7 @@ export default function App() {
   );
 }
 
-// --- NOUVEAU: Page de Sélection de Projet ---
+// --- Page de Sélection de Projet ---
 const ProjectSelectionPage = ({ userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode }) => {
   return (
     <div className="flex flex-col h-screen">
@@ -334,43 +332,60 @@ const ProjectSelectionPage = ({ userProjects, onSelectProject, handleLogout, cur
 const MainLayout = ({ 
   isDarkMode, setIsDarkMode, currentUser, handleLogout, 
   userProjects, selectedProjectId, setSelectedProjectId,
-  appData
+  appData // Contient maintenant selectedProject détaillé
 }) => {
-  // NOUVEAU: Récupérer projectId depuis l'URL
   const { projectId } = useParams();
   const navigate = useNavigate();
 
-  // NOUVEAU: Vérifier si le projectId de l'URL est valide pour l'utilisateur
+  // Vérifier si le projectId de l'URL est valide et correspond à l'état
   useEffect(() => {
-    if (projectId && !userProjects.some(p => p.id === projectId)) {
-      // Si l'URL contient un ID de projet invalide, rediriger vers la sélection
-      setSelectedProjectId(null); // Désélectionner au cas où
-      navigate('/select-project', { replace: true });
-    } else if (projectId && projectId !== selectedProjectId) {
-       // Si l'URL a un ID valide mais différent de l'état, synchroniser l'état
-       setSelectedProjectId(projectId);
-    } else if (!projectId && selectedProjectId) {
-      // Si l'URL n'a plus d'ID mais qu'un projet est sélectionné (ex: via le dropdown),
-      // naviguer vers la page de sélection (car le header a mis selectedProjectId à null)
-       navigate('/select-project', { replace: true });
+    // Si l'URL a un ID de projet
+    if (projectId) {
+      // Vérifier si ce projet est accessible à l'utilisateur
+      if (!userProjects.some(p => p.id === projectId)) {
+        // ID invalide -> retour à la sélection
+        setSelectedProjectId(null); 
+        navigate('/select-project', { replace: true });
+      } else if (projectId !== selectedProjectId) {
+        // ID valide mais différent de l'état -> synchroniser l'état
+        setSelectedProjectId(projectId);
+      }
+    } 
+    // Si l'URL n'a PAS d'ID de projet (ex: /users)
+    else {
+      // Vérifier si un projet était sélectionné (ex: via dropdown "-- Aucun --")
+      if (selectedProjectId) {
+         // L'utilisateur a explicitement désélectionné -> retour à la sélection
+         setSelectedProjectId(null); // Assurer la désélection dans l'état
+         navigate('/select-project', { replace: true });
+      }
+      // Si ni URL ni état n'ont d'ID, on est probablement sur /users ou /settings, c'est ok.
     }
   }, [projectId, userProjects, navigate, selectedProjectId, setSelectedProjectId]);
 
-  // Si le projetId de l'URL n'est pas (encore) valide ou synchronisé, ne rien afficher
-  if (!selectedProjectId || selectedProjectId !== projectId) {
-    // Ou afficher un indicateur de chargement
+  // Si l'URL demande un projet mais qu'il n'est pas encore chargé/validé
+  // Ou si on est sur une route projet mais selectedProjectId est null (vient d'être désélectionné)
+  if (projectId && (!selectedProjectId || selectedProjectId !== projectId)) {
     return <div className="flex items-center justify-center h-screen">Chargement du projet...</div>; 
   }
+  
+  // Cas spécifique pour les routes admin (/users, /settings) qui n'ont pas de projectId
+  const isAdminRoute = location.pathname === '/users' || location.pathname === '/settings';
+  if (!projectId && !isAdminRoute && currentUser) {
+      // Si on n'est pas sur une route admin et qu'aucun projet n'est sélectionné, retourner à la sélection
+      return <Navigate to="/select-project" replace />;
+  }
 
-  // Injecter projectId dans les données passées aux pages
-  const pageProps = { ...appData, selectedProjectId: projectId };
+
+  // Injecter projectId dans les données passées aux pages SI projectId existe
+  const pageProps = projectId ? { ...appData, selectedProjectId: projectId } : appData;
 
   return (
     <>
       <Sidebar 
         handleLogout={handleLogout}
         currentUser={currentUser}
-        projectId={projectId} // NOUVEAU: Passer l'ID du projet pour les liens
+        projectId={projectId} 
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
@@ -379,28 +394,71 @@ const MainLayout = ({
           currentUser={currentUser}
           userProjects={userProjects} 
           selectedProjectId={selectedProjectId}
-          setSelectedProjectId={setSelectedProjectId} // Garder pour le switch rapide
+          setSelectedProjectId={setSelectedProjectId} 
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
-          {/* NOUVEAU: Routes imbriquées sous /project/:projectId/ */}
+          {/* MODIFIÉ: Structure de routage pour gérer les routes projet ET admin */}
           <Routes>
-            <Route index element={<Navigate to="dashboard" replace />} /> {/* /project/:id/ -> /project/:id/dashboard */}
-            <Route path="dashboard" element={<DashboardPage isDarkMode={pageProps.isDarkMode} />} />
-            {/* La route /projects n'est plus accessible ici */}
-            <Route path="plans" element={<PlansPage {...pageProps} />} />
-            <Route path="blocks" element={<BlocksPage {...pageProps} />} />
-            <Route path="lots" element={<LotsPage {...pageProps} />} />
-            <Route path="revisions" element={<RevisionsPage {...pageProps} />} />
-            {/* L'accès à Users/Settings dépend toujours du rôle, géré dans le composant lui-même */}
-            <Route path="users" element={<UsersPage {...pageProps} />} />
-            <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} />
-            <Route path="*" element={<Navigate to="dashboard" replace />} /> {/* Route inconnue dans un projet -> dashboard */}
+             {/* Routes spécifiques au projet */}
+             <Route path="dashboard" element={<DashboardPage {...pageProps} />} />
+             <Route path="plans" element={<PlansPage {...pageProps} />} />
+             <Route path="blocks" element={<BlocksPage {...pageProps} />} />
+             <Route path="lots" element={<LotsPage {...pageProps} />} />
+             <Route path="revisions" element={<RevisionsPage {...pageProps} />} />
+             
+             {/* Redirection par défaut DANS un projet */}
+             <Route index element={<Navigate to="dashboard" replace />} />
+             <Route path="*" element={<Navigate to="dashboard" replace />} /> 
           </Routes>
         </main>
       </div>
     </>
   );
 };
+
+// NOUVELLE ROUTE HORS LAYOUT PROJET POUR ADMIN
+const AdminLayout = ({ currentUser, handleLogout, appData }) => {
+   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+   
+   if (!isAdmin) {
+      return <Navigate to="/select-project" replace />;
+   }
+
+   return (
+      <>
+         <Sidebar 
+           handleLogout={handleLogout}
+           currentUser={currentUser}
+           projectId={null} // Pas de projet actif pour l'admin
+         />
+         <div className="flex-1 flex flex-col overflow-hidden">
+           {/* Header simplifié pour admin ? Ou garder le même ? Pour l'instant on garde */}
+           {/* Note: Le dropdown projet sera vide ou désactivé ici */}
+            <Header 
+              isDarkMode={appData.isDarkMode} 
+              setIsDarkMode={appData.setIsDarkMode} 
+              currentUser={currentUser}
+              userProjects={[]} // Pas de projet actif
+              selectedProjectId={null}
+              setSelectedProjectId={() => {}} // Fonction vide
+            />
+           <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+             <Routes>
+                <Route path="users" element={<UsersPage {...appData} />} />
+                <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} />
+                 {/* Redirection par défaut pour /admin/* */}
+                <Route index element={<Navigate to="users" replace />} />
+                <Route path="*" element={<Navigate to="users" replace />} /> 
+             </Routes>
+           </main>
+         </div>
+      </>
+   );
+};
+
+/* --- Le reste des composants (LoginScreen, Sidebar, Header, Pages, Modals, Forms) --- */
+/* ---             RESTE IDENTIQUE À LA VERSION PRÉCÉDENTE                      --- */
+/* ---             SAUF pour DashboardPage qui est mise à jour                    --- */
 
 
 // --- Composants de l'interface ---
@@ -469,6 +527,7 @@ const LoginScreen = ({ onLogin, isDarkMode }) => {
 };
 
 // Barre latérale
+// ... (Identique à la version précédente)
 const Sidebar = ({ handleLogout, currentUser, projectId }) => { // MODIFIÉ: reçoit projectId
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const location = useLocation(); 
@@ -551,6 +610,7 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => { // MODIFIÉ: re�
 };
 
 // En-tête
+// ... (Identique à la version précédente)
 const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selectedProjectId, setSelectedProjectId }) => {
   const navigate = useNavigate();
 
@@ -611,7 +671,8 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selected
   );
 };
 
-// NOUVEAU: Composant Placeholder
+// Composant Placeholder
+// ... (Identique)
 const PlaceholderPage = ({ title, icon }) => (
   <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
     {React.createElement(icon, { className: "w-16 h-16 mb-4" })}
@@ -621,25 +682,33 @@ const PlaceholderPage = ({ title, icon }) => (
 );
 
 
-// --- Composants de Page (Exemples) ---
+// --- Composants de Page ---
 
-// Tableau de bord
-// ... (Identique)
-const DashboardPage = ({ isDarkMode }) => {
-  // ... (Identique à la version précédente)
-  const pieData = [
-    { name: 'Approuvés CTC', value: 40, color: '#10B981' }, // green-500
-    { name: 'En cours', value: 30, color: '#3B82F6' }, // blue-500
-    { name: 'Déposés MO', value: 20, color: '#F59E0B' }, // amber-500
-    { name: 'Obsolètes', value: 10, color: '#EF4444' }, // red-500
-  ];
+// MODIFIÉ: Tableau de bord (prend les données du projet)
+const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers, allBlocks, allLots }) => {
+  const { projectId } = useParams();
 
-  const barData = [
-    { name: 'DUNE', "Plans Actifs": 40, "Révisions": 15 },
-    { name: 'CHO', "Plans Actifs": 30, "Révisions": 5 },
-    { name: 'PHARE', "Plans Actifs": 120, "Révisions": 45 },
-  ];
-  
+  // Filtrer les données pour le projet courant
+  const projectPlans = useMemo(() => allPlans.filter(p => p.id_projet === projectId), [allPlans, projectId]);
+  const projectBlocksCount = useMemo(() => allBlocks.filter(b => b.id_projet === projectId).length, [allBlocks, projectId]);
+  const projectLotsCount = useMemo(() => allLots.filter(l => l.id_projet === projectId).length, [allLots, projectId]);
+  const projectRevisionsCount = useMemo(() => projectPlans.reduce((sum, plan) => sum + plan.historique.length, 0), [projectPlans]);
+
+  // Préparer les données pour les graphiques (spécifiques au projet)
+  const pieData = useMemo(() => {
+    const statuses = projectPlans.reduce((acc, plan) => {
+      acc[plan.statut] = (acc[plan.statut] || 0) + 1;
+      return acc;
+    }, {});
+    return [
+      { name: 'Approuvés CTC', value: statuses['Approuvé CTC'] || 0, color: '#10B981' },
+      { name: 'En cours', value: statuses["En cours d'approbation"] || 0, color: '#F59E0B' }, // Jaune pour en cours
+      { name: 'Déposés MO', value: statuses['Déposé au MO'] || 0, color: '#3B82F6' }, // Bleu pour déposé
+      { name: 'Obsolètes', value: statuses['Obsolète'] || 0, color: '#EF4444' },
+    ];
+  }, [projectPlans]);
+
+  // StatCard reste générique pour l'instant, mais utilise les données filtrées
   const StatCard = ({ title, value, icon, colorClass }) => (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex items-center space-x-4">
       <div className={`p-3 rounded-full ${colorClass} text-white`}>
@@ -654,23 +723,21 @@ const DashboardPage = ({ isDarkMode }) => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord</h1>
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord : {selectedProject?.nom || ''}</h1>
       
-      {/* Cartes de statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Projets Actifs" value={mockProjects.filter(p => p.statut !== 'achevé').length} icon={FolderKanban} colorClass="bg-blue-500" />
-        <StatCard title="Plans Totaux" value={mockPlansInit.length} icon={FileText} colorClass="bg-green-500" />
-        <StatCard title="Approbations CTC" value={mockPlansInit.filter(p => p.statut === 'Approuvé CTC').length} icon={CheckCircle} colorClass="bg-yellow-500" />
-        <StatCard title="Utilisateurs" value={mockUsers.length} icon={Users} colorClass="bg-purple-500" />
+        <StatCard title="Plans du Projet" value={projectPlans.length} icon={FileText} colorClass="bg-green-500" />
+        <StatCard title="Blocs" value={projectBlocksCount} icon={Package} colorClass="bg-blue-500" />
+        <StatCard title="Lots" value={projectLotsCount} icon={Layers} colorClass="bg-indigo-500" />
+        <StatCard title="Révisions Totales" value={projectRevisionsCount} icon={FileDiff} colorClass="bg-yellow-500" />
       </div>
 
-      {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Statut des Plans</h3>
+          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Statut des Plans (Projet)</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+              <Pie data={pieData.filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                 {pieData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
@@ -681,31 +748,19 @@ const DashboardPage = ({ isDarkMode }) => {
           </ResponsiveContainer>
         </div>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité par Projet</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-              <XAxis dataKey="name" stroke={isDarkMode ? '#9CA3AF' : '#6B7280'} />
-              <YAxis stroke={isDarkMode ? '#9CA3AF' : '#6B7280'} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: isDarkMode ? '#374151' : '#FFFFFF', 
-                  borderColor: isDarkMode ? '#4B5563' : '#E5E7EB' 
-                }} 
-                itemStyle={{ color: isDarkMode ? '#F3F4F6' : '#111827' }} 
-              />
-              <Legend />
-              <Bar dataKey="Plans Actifs" fill="#3B82F6" />
-              <Bar dataKey="Révisions" fill="#10B981" />
-            </BarChart>
-          </ResponsiveContainer>
+           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Récente (Prochainement)</h3>
+           <div className="flex items-center justify-center h-[300px] text-gray-400">
+              Graphique d'activité à venir...
+           </div>
         </div>
       </div>
     </div>
   );
 };
 
-// NOUVEAU: Page Projets (avec CUD)
-// ... (Identique à la version précédente)
+
+// Page Projets (avec CUD)
+// ... (Identique)
 const ProjectsPage = ({ currentUser, userProjects, allProjects, setAllProjects, allUsers, setSelectedProjectId }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -895,7 +950,8 @@ const ProjectsPage = ({ currentUser, userProjects, allProjects, setAllProjects, 
   );
 };
 
-// NOUVEAU: Formulaire Projet
+// Formulaire Projet
+// ... (Identique)
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
   const [abreviation, setAbreviation] = useState(project ? project.abreviation : '');
@@ -1035,6 +1091,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
 
 
 // Page Plans
+// ... (Identique, sauf vérification projectId)
 const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser }) => { 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const { projectId } = useParams(); // Récupérer l'ID depuis l'URL
@@ -1151,7 +1208,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
   );
 };
 
-// --- NOUVEAU: Modal Générique ---
+// Modal Générique
 // ... (Identique)
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
@@ -1176,7 +1233,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- Formulaire pour les Blocs ---
+// Formulaire Blocs
 // ... (Identique)
 const BlockForm = ({ block, onSave, onCancel }) => {
   const [nom, setNom] = useState(block ? block.nom : '');
@@ -1236,7 +1293,8 @@ const BlockForm = ({ block, onSave, onCancel }) => {
 };
 
 
-// Page Blocs (avec CUD)
+// Page Blocs
+// ... (Identique, sauf vérification projectId)
 const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState(null); 
@@ -1345,7 +1403,7 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
   );
 };
 
-// --- Formulaire pour les Lots ---
+// Formulaire Lots
 // ... (Identique)
 const LotForm = ({ lot, onSave, onCancel }) => {
   const [nom, setNom] = useState(lot ? lot.nom : '');
@@ -1484,7 +1542,8 @@ const LotForm = ({ lot, onSave, onCancel }) => {
 };
 
 
-// Page Lots (avec CUD)
+// Page Lots
+// ... (Identique, sauf vérification projectId)
 const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLot, setEditingLot] = useState(null); 
@@ -1610,6 +1669,7 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
 };
 
 // Page Révisions
+// ... (Identique, sauf vérification projectId)
 const RevisionsPage = ({ selectedProject, plans }) => {
   const { projectId } = useParams();
   
@@ -1721,7 +1781,7 @@ const UserForm = ({ user, onSave, onCancel }) => {
 
 
 // Page Utilisateurs (avec CUD)
-// ... (Identique)
+// ... (Identique, sauf redirection si pas admin)
 const UsersPage = ({ currentUser, allUsers, setAllUsers }) => { 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
