@@ -11,7 +11,8 @@ import {
   LayoutDashboard, FolderKanban, FileText, Settings, Users, Building, MapPin, 
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
-  Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye // NOUVELLE ICÔNE
+  Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye, 
+  ArrowRight, ShieldCheck // NOUVELLES ICÔNES
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
@@ -21,10 +22,16 @@ const algeriaLocations = {
   "16 - Alger": {
     "Alger Centre": ["Alger Centre", "Sidi M'Hamed"],
     "Bab El Oued": ["Bab El Oued", "Oued Koriche", "Bologhine", "Raïs Hamidou", "Casbah"],
+    "Hussein Dey": ["Hussein Dey", "Kouba", "Mohamed Belouizdad", "El Magharia"],
   },
   "31 - Oran": {
     "Oran": ["Oran"],
-    "Es Senia": ["Es Senia", "Sidi Chami"],
+    "Es Senia": ["Es Senia", "Sidi Chami", "El Kerma"],
+    "Arzew": ["Arzew", "Sidi Ben Yebka"],
+  },
+  "25 - Constantine": {
+    "Constantine": ["Constantine"],
+    "El Khroub": ["El Khroub", "Ouled Rahmoune", "Aïn Smara"],
   }
 };
 
@@ -117,82 +124,78 @@ const useLocalStorageState = (key, defaultValue) => {
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useDarkMode();
   
-  // NOUVEAU: Utilisation du hook de localStorage
+  // États de l'application
   const [currentUser, setCurrentUser] = useLocalStorageState('dune-user', null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!loadInitialState('dune-user', null));
-  const [projects, setProjects] = useLocalStorageState('dune-projects', []);
+  const [userProjects, setUserProjects] = useLocalStorageState('dune-userProjects', []); // Projets filtrés pour l'utilisateur
   const [selectedProjectId, setSelectedProjectId] = useLocalStorageState('dune-selectedProjectId', null);
   
-  // Les données CUD utilisent toujours l'état React simple, elles seront rechargées au login
-  // Ou pour une version complète, elles devraient être dans leur propre hook localStorage
-  const [blocks, setBlocks] = useState(mockBlocksInit);
-  const [lots, setLots] = useState(mockLotsInit);
-  const [plans, setPlans] = useState(mockPlansInit);
-  const [users, setUsers] = useState(mockUsers); // La liste des utilisateurs reste en mémoire
+  // Listes de données maîtresses (simulant la BDD)
+  const [allProjects, setAllProjects] = useState(mockProjects);
+  const [allBlocks, setAllBlocks] = useState(mockBlocksInit);
+  const [allLots, setAllLots] = useState(mockLotsInit);
+  const [allPlans, setAllPlans] = useState(mockPlansInit);
+  const [allUsers, setAllUsers] = useState(mockUsers);
   
   const navigate = useNavigate();
 
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
-    return projects.find(p => p.id === selectedProjectId);
-  }, [projects, selectedProjectId]);
+    return userProjects.find(p => p.id === selectedProjectId);
+  }, [userProjects, selectedProjectId]);
   
-  // Logique de login complète
+  // Logique de login
   const handleLogin = (username, password) => {
-    const user = users.find(u => u.username === username && u.password === password);
+    const user = allUsers.find(u => u.username === username && u.password === password);
     
     if (user) {
-      setCurrentUser(user); // Sauvegarde dans localStorage
+      setCurrentUser(user); 
       setIsAuthenticated(true);
 
-      let userProjects = [];
+      let filteredProjects = [];
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
-        userProjects = mockProjects; 
-      } else if (user.role === 'Ingénieur de suivi' || user.role === 'Visiteur') { // MODIFIÉ: Visiteur inclus
-        userProjects = mockProjects.filter(p => p.id_responsable === user.id || p.acces_visiteur === true); // Logique simplifiée
+        filteredProjects = allProjects; // Admins voient tout
+      } else if (user.role === 'Ingénieur de suivi' || user.role === 'Visiteur') {
+        // Ingénieurs voient leurs projets + projets visiteurs
+        filteredProjects = allProjects.filter(p => p.id_responsable === user.id || p.acces_visiteur === true); 
       }
       
-      setProjects(userProjects); // Sauvegarde dans localStorage
+      setUserProjects(filteredProjects); // Sauvegarde les projets *filtrés*
 
-      if (userProjects.length > 0) {
-        setSelectedProjectId(userProjects[0].id); // Sauvegarde dans localStorage
-      } else {
-        setSelectedProjectId(null);
-      }
+      // Ne pas auto-sélectionner un projet, forcer l'utilisateur à choisir
+      setSelectedProjectId(null);
       
-      navigate('/dashboard'); // NOUVEAU: Redirection après connexion
+      navigate('/projects'); // CORRECTION: Rediriger vers la sélection de projet
     } else {
       console.error("Identifiants incorrects");
     }
   };
 
-  // Déconnexion complète
+  // Déconnexion
   const handleLogout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
-    setProjects([]); 
+    setUserProjects([]); 
     setSelectedProjectId(null);
-    // NOUVEAU: Nettoyage explicite du localStorage
+    
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('dune-user');
-      window.localStorage.removeItem('dune-projects');
+      window.localStorage.removeItem('dune-userProjects');
       window.localStorage.removeItem('dune-selectedProjectId');
     }
-    navigate('/login'); // NOUVEAU: Redirection vers le login
+    navigate('/login'); 
   };
 
   return (
     <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans`}>
-      {/* NOUVEAU: Le routage gère l'affichage */}
       <Routes>
         <Route
           path="/login"
           element={<LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} />}
         />
         
-        {/* NOUVEAU: Route protégée pour le layout principal */}
         <Route
-          path="/*" // Intercepte toutes les autres routes
+          path="/*" 
           element={
             isAuthenticated ? (
               <MainLayout
@@ -200,22 +203,24 @@ export default function App() {
                 setIsDarkMode={setIsDarkMode}
                 currentUser={currentUser}
                 handleLogout={handleLogout}
-                projects={projects}
+                userProjects={userProjects} // Projets filtrés
                 selectedProjectId={selectedProjectId}
                 setSelectedProjectId={setSelectedProjectId}
-                // Props CUD pour l'Outlet
+                // Données CUD
                 appData={{
-                  blocks, setBlocks,
-                  lots, setLots,
-                  plans, setPlans,
-                  users, setUsers,
+                  allProjects, setAllProjects,
+                  allBlocks, setAllBlocks,
+                  allLots, setAllLots,
+                  allPlans, setAllPlans,
+                  allUsers, setAllUsers,
                   selectedProject,
+                  userProjects, // Passer aussi les projets filtrés
                   isDarkMode,
-                  currentUser // CORRECTION: Passer currentUser à appData
+                  currentUser
                 }}
               />
             ) : (
-              <Navigate to="/login" replace /> // Redirige vers /login si non authentifié
+              <Navigate to="/login" replace /> 
             )
           }
         />
@@ -227,7 +232,7 @@ export default function App() {
 // --- NOUVEAU: Composant Layout Principal ---
 const MainLayout = ({ 
   isDarkMode, setIsDarkMode, currentUser, handleLogout, 
-  projects, selectedProjectId, setSelectedProjectId,
+  userProjects, selectedProjectId, setSelectedProjectId,
   appData
 }) => {
   return (
@@ -235,29 +240,30 @@ const MainLayout = ({
       <Sidebar 
         handleLogout={handleLogout}
         currentUser={currentUser}
+        projectSelected={!!selectedProjectId} // NOUVEAU: Savoir si un projet est actif
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           isDarkMode={isDarkMode} 
           setIsDarkMode={setIsDarkMode} 
           currentUser={currentUser}
-          projects={projects}
+          userProjects={userProjects} // Renommé pour plus de clarté
           selectedProjectId={selectedProjectId}
           setSelectedProjectId={setSelectedProjectId}
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
-          {/* NOUVEAU: Routes imbriquées pour le contenu de la page */}
           <Routes>
-            <Route index element={<Navigate to="/dashboard" replace />} /> {/* Redirige / vers /dashboard */}
-            <Route path="dashboard" element={<DashboardPage isDarkMode={appData.isDarkMode} />} />
-            <Route path="projects" element={<ProjectsPage currentUser={currentUser} />} /> {/* CORRECTION: Passer currentUser */}
-            <Route path="plans" element={<PlansPage {...appData} />} />
-            <Route path="blocks" element={<BlocksPage {...appData} />} />
-            <Route path="lots" element={<LotsPage {...appData} />} />
-            <Route path="revisions" element={<RevisionsPage {...appData} />} />
+            {/* CORRECTION: La route /projects est la page principale de sélection */}
+            <Route index element={<Navigate to="/projects" replace />} />
+            <Route path="dashboard" element={selectedProjectId ? <DashboardPage isDarkMode={appData.isDarkMode} /> : <Navigate to="/projects" replace />} />
+            <Route path="projects" element={<ProjectsPage {...appData} setSelectedProjectId={setSelectedProjectId} />} />
+            <Route path="plans" element={selectedProjectId ? <PlansPage {...appData} /> : <Navigate to="/projects" replace />} />
+            <Route path="blocks" element={selectedProjectId ? <BlocksPage {...appData} /> : <Navigate to="/projects" replace />} />
+            <Route path="lots" element={selectedProjectId ? <LotsPage {...appData} /> : <Navigate to="/projects" replace />} />
+            <Route path="revisions" element={selectedProjectId ? <RevisionsPage {...appData} /> : <Navigate to="/projects" replace />} />
             <Route path="users" element={<UsersPage {...appData} currentUser={currentUser} />} />
             <Route path="settings" element={<PlaceholderPage title="Paramètres" icon={Wrench} />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} /> {/* Redirige toute route inconnue */}
+            <Route path="*" element={<Navigate to="/projects" replace />} /> 
           </Routes>
         </main>
       </div>
@@ -331,20 +337,22 @@ const LoginScreen = ({ onLogin, isDarkMode }) => {
 };
 
 // Barre latérale
-const Sidebar = ({ handleLogout, currentUser }) => {
-  // CORRECTION: Logique des rôles
+const Sidebar = ({ handleLogout, currentUser, projectSelected }) => {
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const location = useLocation(); 
 
-  const NavItem = ({ icon, label, to }) => {
-    const isActive = location.pathname === to || (to === '/dashboard' && location.pathname === '/');
+  const NavItem = ({ icon, label, to, disabled = false }) => {
+    const isActive = location.pathname === to;
+    const isDisabled = disabled && !projectSelected;
 
     return (
       <Link
-        to={to}
+        to={isDisabled ? "#" : to} // Ne navigue pas si désactivé
         className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
-          isActive
+          isActive && !isDisabled
             ? 'bg-blue-600 text-white'
+            : isDisabled
+            ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
       >
@@ -361,31 +369,28 @@ const Sidebar = ({ handleLogout, currentUser }) => {
         <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE</span>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        <NavItem icon={LayoutDashboard} label="Tableau de bord" to="/dashboard" />
         <NavItem icon={FolderKanban} label="Projets" to="/projects" />
+        {/* CORRECTION: Désactiver les liens si aucun projet n'est sélectionné */}
+        <NavItem icon={LayoutDashboard} label="Tableau de bord" to="/dashboard" disabled={true} />
         
-        {/* CORRECTION: Logique d'affichage du menu basée sur le rôle */}
-        {/* L'admin voit TOUTE la gestion de projet */}
-        {isAdmin && (
-          <div className="pt-4 mt-4 border-t dark:border-gray-700">
-            <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Gestion du projet</h3>
-            <NavItem icon={Package} label="Blocs" to="/blocks" />
-            <NavItem icon={Layers} label="Lots & Sous-Lots" to="/lots" />
-            <NavItem icon={FileText} label="Plans" to="/plans" />
-            <NavItem icon={FileDiff} label="Révisions" to="/revisions" />
-          </div>
-        )}
+        {/* Section spécifique au projet */}
+        <div className="pt-4 mt-4 border-t dark:border-gray-700">
+          <h3 className={`px-4 mb-2 text-xs font-semibold tracking-wider ${projectSelected ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'} uppercase`}>
+            Gestion du projet {projectSelected ? '' : '(Sélectionnez un projet)'}
+          </h3>
+          
+          {isAdmin && (
+            <>
+              <NavItem icon={Package} label="Blocs" to="/blocks" disabled={true} />
+              <NavItem icon={Layers} label="Lots & Sous-Lots" to="/lots" disabled={true} />
+            </>
+          )}
+          
+          <NavItem icon={FileText} label="Plans" to="/plans" disabled={true} />
+          <NavItem icon={FileDiff} label="Révisions" to="/revisions" disabled={true} />
+        </div>
 
-        {/* Les autres utilisateurs (Ingénieur/Visiteur) ne voient QUE la consultation */}
-        {!isAdmin && (
-          <div className="pt-4 mt-4 border-t dark:border-gray-700">
-            <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Consultation</h3>
-            <NavItem icon={FileText} label="Plans" to="/plans" />
-            <NavItem icon={FileDiff} label="Révisions" to="/revisions" />
-          </div>
-        )}
-        
-        {/* La section Admin ne change pas */}
+        {/* Section Admin */}
         {isAdmin && (
           <div className="pt-4 mt-4 border-t dark:border-gray-700">
             <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Administration</h3>
@@ -408,30 +413,27 @@ const Sidebar = ({ handleLogout, currentUser }) => {
 };
 
 // En-tête
-const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProjectId, setSelectedProjectId }) => {
+const Header = ({ isDarkMode, setIsDarkMode, currentUser, userProjects, selectedProjectId, setSelectedProjectId }) => {
   return (
     <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
       {/* Sélecteur de projet */}
       <div className="flex items-center">
-        {projects.length > 1 ? (
+        {/* CORRECTION: Le sélecteur de projet est maintenant un 'changeur' de projet */}
+        {userProjects.length > 0 ? (
           <>
             <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
             <select
               id="project-select"
-              value={selectedProjectId || ''}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
+              value={selectedProjectId || ''} // Gère le cas où 'null' est la valeur
+              onChange={(e) => setSelectedProjectId(e.target.value || null)} // Permet de désélectionner
               className="w-64 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
-              {projects.map(p => (
+              <option value="">-- Aucun (Retour à la liste) --</option>
+              {userProjects.map(p => (
                 <option key={p.id} value={p.id}>{p.nom} ({p.abreviation})</option>
               ))}
             </select>
           </>
-        ) : projects.length === 1 ? (
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Projet Actif :</span>
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{projects[0].nom}</span>
-          </div>
         ) : (
           <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Aucun projet assigné</span>
         )}
@@ -473,6 +475,7 @@ const PlaceholderPage = ({ title, icon }) => (
 
 // Tableau de bord
 const DashboardPage = ({ isDarkMode }) => {
+  // ... (Identique à la version précédente)
   const pieData = [
     { name: 'Approuvés CTC', value: 40, color: '#10B981' }, // green-500
     { name: 'En cours', value: 30, color: '#3B82F6' }, // blue-500
@@ -550,11 +553,17 @@ const DashboardPage = ({ isDarkMode }) => {
   );
 };
 
-// Page Projets
-const ProjectsPage = ({ currentUser }) => {
+// NOUVEAU: Page Projets (avec CUD)
+const ProjectsPage = ({ currentUser, userProjects, allProjects, setAllProjects, allUsers, setSelectedProjectId }) => {
   const [filter, setFilter] = useState('');
-  // CORRECTION: Logique des rôles
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
+  
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+  const navigate = useNavigate();
+
+  // Les admins voient tout, les autres ne voient que leurs projets filtrés
+  const projectsToDisplay = isAdmin ? allProjects : userProjects;
   
   const getStatusColor = (statut) => {
     switch (statut) {
@@ -566,14 +575,57 @@ const ProjectsPage = ({ currentUser }) => {
     }
   };
 
+  const openModalToEdit = (project) => {
+    setEditingProject(project);
+    setIsModalOpen(true);
+  };
+
+  const openModalToCreate = () => {
+    setEditingProject(null);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingProject(null);
+  };
+
+  const handleSave = (projectData) => {
+    if (editingProject) {
+      // Modification
+      setAllProjects(allProjects.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
+    } else {
+      // Création
+      const newProject = {
+        ...projectData,
+        id: 'p' + Date.now(), // ID unique simple
+        date_creation: new Date().toISOString().split('T')[0], // Date du jour
+      };
+      setAllProjects([...allProjects, newProject]);
+    }
+    closeModal();
+    // TODO: Mettre à jour la liste `userProjects` si un ingénieur se crée un projet
+  };
+
+  const handleDelete = (projectId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.")) {
+      setAllProjects(allProjects.filter(p => p.id !== projectId));
+      // TODO: Supprimer aussi les blocs, lots, plans associés
+    }
+  };
+  
+  const handleSelectProject = (projectId) => {
+    setSelectedProjectId(projectId);
+    navigate('/dashboard');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Projets</h1>
-        {/* CORRECTION: Cacher le bouton pour les non-admins */}
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Sélection des Projets</h1>
         {isAdmin && (
           <button 
-            onClick={() => alert("La création de projet sera ajoutée prochainement.")}
+            onClick={openModalToCreate}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -582,7 +634,6 @@ const ProjectsPage = ({ currentUser }) => {
         )}
       </div>
       
-      {/* Barre de filtre et de recherche */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4">
         <div className="flex-1 relative">
           <input 
@@ -603,7 +654,6 @@ const ProjectsPage = ({ currentUser }) => {
           <option value="achevé">Achevé</option>
           <option value="suspendu">Suspendu</option>
         </select>
-        {/* CORRECTION: Cacher le bouton pour les non-admins */}
         {isAdmin && (
           <button 
             onClick={() => alert("L'exportation sera ajoutée prochainement.")}
@@ -615,7 +665,6 @@ const ProjectsPage = ({ currentUser }) => {
         )}
       </div>
 
-      {/* Tableau des projets */}
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
@@ -624,14 +673,11 @@ const ProjectsPage = ({ currentUser }) => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Localisation</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Responsable</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
-              {/* CORRECTION: Cacher la colonne Actions pour les non-admins */}
-              {isAdmin && (
-                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-              )}
+              <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {mockProjects.filter(p => filter ? p.statut === filter : true).map((project) => (
+            {projectsToDisplay.filter(p => filter ? p.statut === filter : true).map((project) => (
               <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nom}</div>
@@ -642,39 +688,199 @@ const ProjectsPage = ({ currentUser }) => {
                   <div className_="text-xs text-gray-400">{project.adresse}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {mockUsers.find(u => u.id === project.id_responsable)?.username || 'N/A'}
+                  {allUsers.find(u => u.id === project.id_responsable)?.username || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(project.statut)}`}>
                     {project.statut}
                   </span>
                 </td>
-                {/* CORRECTION: Cacher les boutons pour les non-admins */}
-                {isAdmin && (
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                    <button 
-                      onClick={() => alert("La modification de projet sera ajoutée prochainement.")}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
-
-                    <button 
-                      onClick={() => alert("La suppression de projet sera ajoutée prochainement.")}
-                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
-                )}
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <button 
+                    onClick={() => handleSelectProject(project.id)}
+                    title="Ouvrir le projet"
+                    className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
+                  >
+                    <Home className="w-4 h-4" />
+                  </button>
+                  {isAdmin && (
+                    <>
+                      <button 
+                        onClick={() => openModalToEdit(project)}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(project.id)}
+                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={closeModal} 
+        title={editingProject ? "Modifier le Projet" : "Créer un Nouveau Projet"}
+      >
+        <ProjectForm 
+          project={editingProject} 
+          onSave={handleSave} 
+          onCancel={closeModal}
+          allUsers={allUsers}
+          currentUser={currentUser}
+        />
+      </Modal>
     </div>
   );
 };
+
+// NOUVEAU: Formulaire Projet
+const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
+  const [nom, setNom] = useState(project ? project.nom : '');
+  const [abreviation, setAbreviation] = useState(project ? project.abreviation : '');
+  const [wilaya, setWilaya] = useState(project ? project.wilaya : '');
+  const [daira, setDaira] = useState(project ? project.daira : '');
+  const [commune, setCommune] = useState(project ? project.commune : '');
+  const [adresse, setAdresse] = useState(project ? project.adresse : '');
+  const [statut, setStatut] = useState(project ? project.statut : 'en étude');
+  const [idResponsable, setIdResponsable] = useState(project ? project.id_responsable : currentUser.id); // Par défaut, l'ingénieur qui crée
+  
+  const [dairas, setDairas] = useState([]);
+  const [communes, setCommunes] = useState([]);
+  
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+  const ingenieurs = allUsers.filter(u => u.role.includes('Ingénieur') || u.role.includes('Admin')); // Simplifié
+
+  useEffect(() => {
+    if (wilaya && algeriaLocations[wilaya]) {
+      setDairas(Object.keys(algeriaLocations[wilaya]));
+    } else {
+      setDairas([]);
+    }
+    setDaira('');
+    setCommune('');
+  }, [wilaya]);
+
+  useEffect(() => {
+    if (wilaya && daira && algeriaLocations[wilaya] && algeriaLocations[wilaya][daira]) {
+      setCommunes(algeriaLocations[wilaya][daira]);
+    } else {
+      setCommunes([]);
+    }
+    setCommune('');
+  }, [wilaya, daira]);
+  
+  // Pré-remplir les listes si on édite
+  useEffect(() => {
+    if (project) {
+      if (project.wilaya && algeriaLocations[project.wilaya]) {
+        setDairas(Object.keys(algeriaLocations[project.wilaya]));
+      }
+      if (project.wilaya && project.daira && algeriaLocations[project.wilaya] && algeriaLocations[project.wilaya][project.daira]) {
+        setCommunes(algeriaLocations[project.wilaya][project.daira]);
+      }
+    }
+  }, [project]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...project,
+      nom,
+      abreviation: abreviation.toUpperCase(),
+      wilaya, daira, commune, adresse, statut, id_responsable: idResponsable
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Projet</label>
+          <input type="text" value={nom} onChange={(e) => setNom(e.target.value)} required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation (auto-majuscule)</label>
+          <input type="text" value={abreviation} onChange={(e) => setAbreviation(e.target.value)} required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Adresse ou description du site</label>
+        <input type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)}
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wilaya</label>
+          <select value={wilaya} onChange={(e) => setWilaya(e.target.value)} required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+            <option value="">-- Sélectionner --</option>
+            {Object.keys(algeriaLocations).map(w => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Daïra</label>
+          <select value={daira} onChange={(e) => setDaira(e.target.value)} required disabled={dairas.length === 0}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+            <option value="">-- Sélectionner --</option>
+            {dairas.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commune</label>
+          <select value={commune} onChange={(e) => setCommune(e.target.value)} required disabled={communes.length === 0}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+            <option value="">-- Sélectionner --</option>
+            {communes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut</label>
+          <select value={statut} onChange={(e) => setStatut(e.target.value)} required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+            <option value="en étude">En étude</option>
+            <option value="en exécution">En exécution</option>
+            <option value="achevé">Achevé</option>
+            <option value="suspendu">Suspendu</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Responsable du Projet</label>
+          <select value={idResponsable} onChange={(e) => setIdResponsable(e.target.value)} required disabled={!isAdmin}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+            {ingenieurs.map(u => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-4">
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+          Annuler
+        </button>
+        <button type="submit"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">
+          <Save className="w-4 h-4 mr-2" />
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  );
+};
+
 
 // Page Plans
 const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser }) => { 
@@ -700,7 +906,6 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
-        {/* CORRECTION: Cacher le bouton pour les non-admins */}
         {isAdmin && (
           <button 
             onClick={() => alert("La création de plan sera ajoutée prochainement.")}
@@ -757,7 +962,6 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
                   <div className="text-xs text-gray-400">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  {/* CORRECTION: Cacher le bouton "Modifier" pour les non-admins */}
                   {isAdmin && (
                     <button 
                       onClick={() => alert("La gestion des révisions sera ajoutée prochainement.")}
@@ -767,7 +971,6 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
                       <FileDiff className="w-5 h-5" />
                     </button>
                   )}
-                  {/* CORRECTION: Afficher "Voir" pour les non-admins */}
                   {!isAdmin && (
                     <button 
                       onClick={() => alert("Affichage de l'historique des révisions...")}
@@ -777,7 +980,6 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
                       <Eye className="w-5 h-5" />
                     </button>
                   )}
-
                   <button 
                     onClick={() => navigator.clipboard.writeText(plan.reference)}
                     title="Copier la référence" 
@@ -796,6 +998,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
 };
 
 // --- NOUVEAU: Modal Générique ---
+// ... (Identique à la version précédente)
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
@@ -820,6 +1023,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 };
 
 // --- NOUVEAU: Formulaire pour les Blocs ---
+// ... (Identique à la version précédente)
 const BlockForm = ({ block, onSave, onCancel }) => {
   const [nom, setNom] = useState(block ? block.nom : '');
   const [abreviation, setAbreviation] = useState(block ? block.abreviation : '');
@@ -879,7 +1083,8 @@ const BlockForm = ({ block, onSave, onCancel }) => {
 
 
 // NOUVEAU: Page Blocs (avec CUD)
-const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
+// ... (Identique à la version précédente)
+const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState(null); // null = nouveau, objet = modification
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
@@ -893,7 +1098,7 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
      return <Navigate to="/dashboard" replace />;
   }
 
-  const projectBlocks = blocks.filter(b => b.id_projet === selectedProject.id);
+  const projectBlocks = allBlocks.filter(b => b.id_projet === selectedProject.id);
 
   const openModalToEdit = (block) => {
     setEditingBlock(block);
@@ -913,7 +1118,7 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
   const handleSave = (blockData) => {
     if (editingBlock) {
       // Modification
-      setBlocks(blocks.map(b => b.id === editingBlock.id ? { ...b, ...blockData } : b));
+      setAllBlocks(allBlocks.map(b => b.id === editingBlock.id ? { ...b, ...blockData } : b));
     } else {
       // Création
       const newBlock = {
@@ -921,7 +1126,7 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
         id: 'b' + Date.now(), // ID unique simple
         id_projet: selectedProject.id
       };
-      setBlocks([...blocks, newBlock]);
+      setAllBlocks([...allBlocks, newBlock]);
     }
     closeModal();
   };
@@ -929,7 +1134,7 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
   const handleDelete = (blockId) => {
     // Remplacer par une confirmation modale dans une future version
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce bloc ?")) {
-      setBlocks(blocks.filter(b => b.id !== blockId));
+      setAllBlocks(allBlocks.filter(b => b.id !== blockId));
     }
   };
 
@@ -937,7 +1142,6 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Blocs pour : {selectedProject.nom}</h1>
-        {/* CORRECTION: Le bouton est déjà caché par la redirection de page, mais bonne pratique */}
         {isAdmin && (
           <button 
             onClick={openModalToCreate}
@@ -954,7 +1158,6 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nom</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Abréviation</th>
-              {/* CORRECTION: Cacher la colonne Actions pour les non-admins */}
               {isAdmin && (
                 <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
               )}
@@ -965,7 +1168,6 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
               <tr key={block.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{block.nom}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{block.abreviation}</td>
-                {/* CORRECTION: Cacher les boutons pour les non-admins */}
                 {isAdmin && (
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                     <button onClick={() => openModalToEdit(block)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
@@ -994,6 +1196,7 @@ const BlocksPage = ({ selectedProject, blocks, setBlocks, currentUser }) => {
 };
 
 // --- NOUVEAU: Formulaire pour les Lots ---
+// ... (Identique à la version précédente)
 const LotForm = ({ lot, onSave, onCancel }) => {
   const [nom, setNom] = useState(lot ? lot.nom : '');
   const [abreviation, setAbreviation] = useState(lot ? lot.abreviation : '');
@@ -1132,7 +1335,8 @@ const LotForm = ({ lot, onSave, onCancel }) => {
 
 
 // NOUVEAU: Page Lots (avec CUD)
-const LotsPage = ({ selectedProject, lots, setLots, currentUser }) => {
+// ... (Identique à la version précédente)
+const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLot, setEditingLot] = useState(null); // null = nouveau, objet = modification
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
@@ -1146,7 +1350,7 @@ const LotsPage = ({ selectedProject, lots, setLots, currentUser }) => {
      return <Navigate to="/dashboard" replace />;
   }
   
-  const projectLots = lots.filter(l => l.id_projet === selectedProject.id);
+  const projectLots = allLots.filter(l => l.id_projet === selectedProject.id);
 
   const openModalToEdit = (lot) => {
     setEditingLot(lot);
@@ -1166,7 +1370,7 @@ const LotsPage = ({ selectedProject, lots, setLots, currentUser }) => {
   const handleSave = (lotData) => {
     if (editingLot) {
       // Modification
-      setLots(lots.map(l => l.id === editingLot.id ? { ...l, ...lotData } : l));
+      setAllLots(allLots.map(l => l.id === editingLot.id ? { ...l, ...lotData } : l));
     } else {
       // Création
       const newLot = {
@@ -1174,14 +1378,14 @@ const LotsPage = ({ selectedProject, lots, setLots, currentUser }) => {
         id: 'l' + Date.now(), // ID unique simple
         id_projet: selectedProject.id
       };
-      setLots([...lots, newLot]);
+      setAllLots([...allLots, newLot]);
     }
     closeModal();
   };
 
   const handleDelete = (lotId) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce lot ?")) {
-      setLots(lots.filter(l => l.id !== lotId));
+      setAllLots(allLots.filter(l => l.id !== lotId));
     }
   };
 
@@ -1264,8 +1468,6 @@ const RevisionsPage = ({ selectedProject, plans }) => {
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
-
-  // Aplatir l'historique de tous les plans du projet
   const allRevisions = plans
     .filter(p => p.id_projet === selectedProject.id)
     .flatMap(plan => 
@@ -1275,7 +1477,7 @@ const RevisionsPage = ({ selectedProject, plans }) => {
         planTitre: plan.titre,
       }))
     )
-    .sort((a, b) => new Date(b.date) - new Date(a.date)); // Trier par date, du plus récent au plus ancien
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return (
     <div className="space-y-6">
@@ -1311,26 +1513,116 @@ const RevisionsPage = ({ selectedProject, plans }) => {
   );
 };
 
-// NOUVEAU: Page Utilisateurs
-const UsersPage = ({ currentUser, users, setUsers }) => { 
+// NOUVEAU: Formulaire Utilisateur
+const UserForm = ({ user, onSave, onCancel }) => {
+  const [username, setUsername] = useState(user ? user.username : '');
+  const [password, setPassword] = useState(''); // Toujours vide pour la sécurité
+  const [role, setRole] = useState(user ? user.role : 'Ingénieur de suivi');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...user,
+      username,
+      // Ne pas écraser le mot de passe si le champ est vide lors de la modification
+      ...(password && { password: password }), 
+      role,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Identifiant</label>
+        <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Mot de passe {user ? "(laisser vide pour ne pas changer)" : ""}
+        </label>
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required={!user}
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Rôle</label>
+        <select value={role} onChange={(e) => setRole(e.target.value)} required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+          <option value="Ingénieur de suivi">Ingénieur de suivi</option>
+          <option value="Administrateur secondaire">Administrateur secondaire</option>
+          <option value="Visiteur">Visiteur</option>
+        </select>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-4">
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+          Annuler
+        </button>
+        <button type="submit"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">
+          <Save className="w-4 h-4 mr-2" />
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  );
+};
+
+
+// NOUVEAU: Page Utilisateurs (avec CUD)
+const UsersPage = ({ currentUser, allUsers, setAllUsers }) => { 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-red-500 dark:text-red-400">
-        <AlertCircle className="w-16 h-16 mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Accès non autorisé</h1>
-        <p>Vous n'avez pas les droits nécessaires pour accéder à cette page.</p>
-      </div>
-    );
+     return <Navigate to="/dashboard" replace />;
   }
   
+  const openModalToEdit = (user) => {
+    setEditingUser(user);
+    setIsModalOpen(true);
+  };
+
+  const openModalToCreate = () => {
+    setEditingUser(null);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+  };
+
+  const handleSave = (userData) => {
+    if (editingUser) {
+      // Modification
+      setAllUsers(allUsers.map(u => u.id === editingUser.id ? { ...u, ...userData } : u));
+    } else {
+      // Création
+      const newUser = {
+        ...userData,
+        id: 'u' + Date.now(), // ID unique simple
+      };
+      setAllUsers([...allUsers, newUser]);
+    }
+    closeModal();
+  };
+
+  const handleDelete = (userId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
+      setAllUsers(allUsers.filter(u => u.id !== userId));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Utilisateurs</h1>
         <button 
-          onClick={() => alert("La création d'utilisateur sera ajoutée prochainement.")}
+          onClick={openModalToCreate}
           className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5 mr-2" />
@@ -1347,20 +1639,20 @@ const UsersPage = ({ currentUser, users, setUsers }) => {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {users.map((user) => (
+            {allUsers.map((user) => (
               <tr key={user.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{user.username}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.role}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                   <button 
-                    onClick={() => alert("La modification d'utilisateur sera ajoutée prochainement.")}
+                    onClick={() => openModalToEdit(user)}
                     className="text-blue-600 dark:text-blue-400 disabled:text-gray-400"
                     disabled={user.role === 'Gérant principal'} // On ne peut pas modifier le gérant principal
                   >
                     <Edit2 className="w-5 h-5" />
                   </button>
                   <button 
-                    onClick={() => alert("La suppression d'utilisateur sera ajoutée prochainement.")}
+                    onClick={() => handleDelete(user.id)}
                     className="text-red-600 dark:text-red-400 disabled:text-gray-400"
                     disabled={user.role === 'Gérant principal'} // On ne peut pas supprimer le gérant principal
                   >
@@ -1372,6 +1664,18 @@ const UsersPage = ({ currentUser, users, setUsers }) => {
           </tbody>
         </table>
       </div>
+      
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={closeModal} 
+        title={editingUser ? "Modifier un Utilisateur" : "Créer un Nouvel Utilisateur"}
+      >
+        <UserForm 
+          user={editingUser} 
+          onSave={handleSave} 
+          onCancel={closeModal}
+        />
+      </Modal>
     </div>
   );
 };
