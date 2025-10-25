@@ -1,0 +1,18 @@
+# Ignorer les dépendances (le plus important)
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Fichiers de build
+dist/
+frontend/dist/
+
+# Fichiers d'environnement (secrets)
+.env
+.env.*
+*.local
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+.vscode/
