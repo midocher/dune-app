@@ -1,695 +1,505 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  LayoutDashboard, 
-  Briefcase, 
-  Layers, 
-  FileText, 
-  Settings, 
-  Users, 
-  Building, 
-  ChevronDown, 
-  ChevronRight, 
-  Plus, 
-  MoreVertical, 
-  File, 
-  Search, 
-  Menu, 
-  X, 
-  LogIn, 
-  LogOut, 
-  User, 
-  Moon, 
-  Sun,
-  ShieldCheck,
-  MapPin,
-  Calendar,
-  BarChart2,
-  PieChart,
-  List,
-  Grid,
-  Edit2,
-  Trash2,
-  FileUp,
-  History,
-  AlertCircle,
-  CheckCircle,
-  Package,
-  FileArchive,
-  BookMarked
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
+  LayoutDashboard, FolderKanban, FileText, Settings, Users, Building, MapPin, 
+  ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
+  FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download
 } from 'lucide-react';
 
-// --- CONTEXTE POUR L'APPLICATION (Thème, Authentification) ---
+// --- Données de Simulation (à remplacer par votre API) ---
 
-// Contexte pour le thème (Clair/Sombre)
-const ThemeContext = createContext();
+// Données fictives pour les Wilayas, Daïras, Communes (Algérie)
+const algeriaLocations = {
+  "16 - Alger": {
+    "Alger Centre": ["Alger Centre", "Sidi M'Hamed"],
+    "Bab El Oued": ["Bab El Oued", "Oued Koriche", "Bologhine", "Raïs Hamidou", "Casbah"],
+  },
+  "31 - Oran": {
+    "Oran": ["Oran"],
+    "Es Senia": ["Es Senia", "Sidi Chami"],
+  }
+};
 
-function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => localStorage.getItem('dune-theme') || 'light');
+const mockUsers = [
+  { id: 'u1', username: 'gérant.principal', role: 'Gérant principal', password: 'admin' }, // Mot de passe simulé
+  { id: 'u2', username: 'admin.secondaire', role: 'Administrateur secondaire', password: 'admin' },
+  { id: 'u3', username: 'ing.suivi', role: 'Ingénieur de suivi', password: 'user' },
+  { id: 'u4', username: 'visiteur.temp', role: 'Visiteur', password: 'guest' },
+];
+
+const mockProjects = [
+  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "[https://maps.google.com/](https://maps.google.com/)...", id_responsable: 'u3', statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
+  { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", id_responsable: 'u3', statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
+  { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", id_responsable: 'u2', statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
+];
+
+const mockLots = [
+  { id: 'l1', id_projet: 'p1', nom: 'Architecture', abreviation: 'ARCH', ctc_approbation: true, sousLots: [{ id: 'sl1', nom: 'Plans de masse', abreviation: 'PM' }] },
+  { id: 'l2', id_projet: 'p1', nom: 'Génie Civil', abreviation: 'GCIV', ctc_approbation: true, sousLots: [] },
+  { id: 'l3', id_projet: 'p1', nom: 'Électricité', abreviation: 'ELEC', ctc_approbation: false, sousLots: [{ id: 'sl2', nom: 'Courants Forts', abreviation: 'CF' }, { id: 'sl3', nom: 'Courants Faibles', abreviation: 'Cf' }] },
+  { id: 'l4', id_projet: 'p2', nom: 'Architecture', abreviation: 'ARCH', ctc_approbation: true, sousLots: [] },
+];
+
+const mockBlocks = [
+  { id: 'b1', id_projet: 'p1', nom: 'Administration', abreviation: 'ADM' },
+  { id: 'b2', id_projet: 'p1', nom: 'Hébergement', abreviation: 'HEB' },
+  { id: 'b3', id_projet: 'p2', nom: 'Restaurant', abreviation: 'REST' },
+];
+
+const mockPlans = [
+  { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "sim-plan-a.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
+  { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
+  { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
+];
+
+// --- Fin des Données de Simulation ---
+
+
+// Hook pour le mode sombre
+const useDarkMode = () => {
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.theme === 'dark' || 
+             (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return false;
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === 'dark') {
+    if (isDarkMode) {
       root.classList.add('dark');
+      localStorage.theme = 'dark';
     } else {
       root.classList.remove('dark');
+      localStorage.theme = 'light';
     }
-    localStorage.setItem('dune-theme', theme);
-  }, [theme]);
+  }, [isDarkMode]);
 
-  const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
+  return [isDarkMode, setIsDarkMode];
+};
 
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-}
+// Composant principal
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentPage, setCurrentPage] = useState('login');
+  const [isDarkMode, setIsDarkMode] = useDarkMode();
 
-const useTheme = () => useContext(ThemeContext);
-
-// Contexte pour l'authentification
-const AuthContext = createContext();
-
-function AuthProvider({ children }) {
-  const [user, setUser] = useState(null); // { username: 'gerant', role: 'Gérant principal' }
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Définir l'URL de base de l'API
-  // IMPORTANT : Ceci sera remplacé par l'URL de Render à la Phase 5
-  const API_BASE_URL = 'https://dune-app-eui0.onrender.com';
-
-  const login = async (username, password) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Identifiant ou mot de passe incorrect');
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-      setToken(data.token);
-      // Simuler la sauvegarde du token
-      localStorage.setItem('dune-token', data.token);
-      return true;
-    } catch (err) {
-      setError(err.message);
-      return false;
-    } finally {
-      setLoading(false);
+  // État de l'application
+  const [projects, setProjects] = useState(mockProjects);
+  const [selectedProjectId, setSelectedProjectId] = useState(mockProjects[0]?.id || null);
+  
+  // Mémorisation du projet sélectionné
+  const selectedProject = useMemo(() => {
+    return projects.find(p => p.id === selectedProjectId);
+  }, [projects, selectedProjectId]);
+  
+  const handleLogin = (username, password) => {
+    // Simulation d'une API d'authentification
+    const user = mockUsers.find(u => u.username === username && u.password === password);
+    if (user) {
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      setCurrentPage('dashboard');
+    } else {
+      // Gérer l'échec de la connexion (par exemple, afficher un message)
+      console.error("Identifiants incorrects");
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('dune-token');
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setCurrentPage('login');
   };
 
+  if (currentPage === 'login') {
+    return <LoginScreen onLogin={handleLogin} isDarkMode={isDarkMode} />;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, error, login, logout, API_BASE_URL }}>
-      {children}
-    </AuthContext.Provider>
+    <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans`}>
+      {/* Barre latérale */}
+      <Sidebar 
+        currentPage={currentPage} 
+        setCurrentPage={setCurrentPage} 
+        handleLogout={handleLogout}
+        currentUser={currentUser}
+      />
+
+      {/* Contenu principal */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* En-tête */}
+        <Header 
+          isDarkMode={isDarkMode} 
+          setIsDarkMode={setIsDarkMode} 
+          currentUser={currentUser}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          setSelectedProjectId={setSelectedProjectId}
+        />
+
+        {/* Zone de contenu défilable */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+          <PageContent 
+            page={currentPage} 
+            currentUser={currentUser} 
+            selectedProject={selectedProject}
+          />
+        </main>
+      </div>
+    </div>
   );
 }
 
-const useAuth = () => useContext(AuthContext);
+// --- Composants de l'interface ---
 
-// --- COMPOSANTS DE L'INTERFACE UTILISATEUR (UI) ---
-
-/**
- * Composant de Connexion
- */
-function LoginPage() {
+// Écran de connexion
+const LoginScreen = ({ onLogin, isDarkMode }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login, loading, error } = useAuth();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    await login(username, password);
+    onLogin(username, password);
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-xl dark:bg-gray-800">
+    <div className={`flex items-center justify-center min-h-screen w-full ${isDarkMode ? 'dark' : ''} bg-gray-100 dark:bg-gray-900`}>
+      <div className="w-full max-w-md p-8 space-y-8 bg-white dark:bg-gray-800 rounded-lg shadow-2xl">
         <div className="flex flex-col items-center">
-          <div className="p-3 mb-4 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full">
-            <BookMarked className="w-10 h-10 text-white" />
-          </div>
-          <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white">
-            DUNE
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Gestion des Projets et Plans Techniques
-          </p>
+          <Building className="w-16 h-16 text-blue-600 dark:text-blue-400" />
+          <h1 className="mt-4 text-3xl font-bold text-center text-gray-900 dark:text-gray-100">DUNE</h1>
+          <p className="mt-1 text-center text-sm text-gray-600 dark:text-gray-400">Gestion des Projets et Plans Techniques</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
+          <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label 
-                htmlFor="username" 
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Identifiant
-              </label>
               <input
                 id="username"
                 name="username"
                 type="text"
+                autoComplete="username"
                 required
-                className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500"
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Identifiant"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div>
-              <label 
-                htmlFor="password" 
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Mot de passe
-              </label>
               <input
                 id="password"
                 name="password"
                 type="password"
+                autoComplete="current-password"
                 required
-                className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500"
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Mot de passe"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </div>
 
-          {error && (
-            <div className="flex items-center p-3 text-sm text-red-700 bg-red-100 rounded-md dark:bg-red-900 dark:text-red-200">
-              <AlertCircle className="w-5 h-5 mr-2" />
-              <span>{error}</span>
-            </div>
-          )}
-
           <div>
             <button
               type="submit"
-              disabled={loading}
-              className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-amber-600 border border-transparent rounded-md group hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-800 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
-              {loading ? 'Connexion...' : 'Se connecter'}
+              Se connecter
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-}
+};
 
-/**
- * Composant principal de l'application (Layout)
- */
-function AppLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  
+// Barre latérale
+const Sidebar = ({ currentPage, setCurrentPage, handleLogout, currentUser }) => {
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
+
+  const NavItem = ({ icon, label, pageName }) => (
+    <button
+      onClick={() => setCurrentPage(pageName)}
+      className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
+        currentPage === pageName
+          ? 'bg-blue-600 text-white'
+          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+      }`}
+    >
+      {React.createElement(icon, { className: "w-5 h-5 mr-3" })}
+      <span className="font-medium">{label}</span>
+    </button>
+  );
+
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Sidebar (Mobile) */}
-      <MobileSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} setCurrentPage={setCurrentPage} />
+    <div className="w-64 bg-white dark:bg-gray-800 shadow-lg flex flex-col flex-shrink-0">
+      <div className="flex items-center justify-center h-20 border-b dark:border-gray-700">
+        <Building className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+        <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE</span>
+      </div>
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        <NavItem icon={LayoutDashboard} label="Tableau de bord" pageName="dashboard" />
+        <NavItem icon={FolderKanban} label="Projets" pageName="projects" />
+        
+        {/* Section spécifique au projet */}
+        <div className="pt-4 mt-4 border-t dark:border-gray-700">
+          <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Gestion du projet</h3>
+          <NavItem icon={Layers} label="Blocs" pageName="blocks" />
+          <NavItem icon={Home} label="Lots & Sous-Lots" pageName="lots" />
+          <NavItem icon={FileText} label="Plans" pageName="plans" />
+          <NavItem icon={FileDiff} label="Révisions" pageName="revisions" />
+        </div>
 
-      {/* Sidebar (Desktop) */}
-      <DesktopSidebar setCurrentPage={setCurrentPage} currentPage={currentPage} />
-
-      {/* Contenu principal */}
-      <div className="flex flex-col flex-1 w-0 overflow-hidden">
-        <Header setSidebarOpen={setSidebarOpen} />
-        <MainContent currentPage={currentPage} />
+        {/* Section Admin */}
+        {isAdmin && (
+          <div className="pt-4 mt-4 border-t dark:border-gray-700">
+            <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Administration</h3>
+            <NavItem icon={Users} label="Utilisateurs" pageName="users" />
+            <NavItem icon={Settings} label="Paramètres" pageName="settings" />
+          </div>
+        )}
+      </nav>
+      <div className="px-4 py-4 border-t dark:border-gray-700">
+        <button
+          onClick={handleLogout}
+          className="flex items-center w-full px-4 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+        >
+          <LogOut className="w-5 h-5 mr-3" />
+          <span className="font-medium">Déconnexion</span>
+        </button>
       </div>
     </div>
   );
-}
+};
 
-/**
- * Header (Barre supérieure)
- */
-function Header({ setSidebarOpen }) {
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-
+// En-tête
+const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProjectId, setSelectedProjectId }) => {
   return (
-    <div className="relative z-10 flex-shrink-0 flex h-16 bg-white dark:bg-gray-800 shadow-md dark:shadow-gray-700">
-      <button
-        className="px-4 text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-500 md:hidden"
-        onClick={() => setSidebarOpen(true)}
-      >
-        <span className="sr-only">Ouvrir le menu</span>
-        <Menu className="w-6 h-6" />
-      </button>
-      <div className="flex-1 px-4 flex justify-between">
-        <div className="flex-1 flex items-center">
-          <div className="relative w-full max-w-md text-gray-400 focus-within:text-gray-600">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Search className="w-5 h-5" />
-            </div>
-            <input
-              className="block w-full h-full py-2 pl-10 pr-3 text-gray-900 placeholder-gray-500 bg-white border-transparent rounded-md dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-transparent focus:placeholder-gray-400 sm:text-sm"
-              placeholder="Rechercher un projet, un plan..."
-              type="search"
-            />
+    <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
+      {/* Sélecteur de projet */}
+      <div className="flex items-center">
+        <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
+        <select
+          id="project-select"
+          value={selectedProjectId || ''}
+          onChange={(e) => setSelectedProjectId(e.target.value)}
+          className="w-64 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+        >
+          {projects.map(p => (
+            <option key={p.id} value={p.id}>{p.nom} ({p.abreviation})</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Icônes et Profil */}
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+        >
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
+        <div className="flex items-center">
+          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+            {currentUser?.username.substring(0, 2).toUpperCase()}
+          </div>
+          <div className="ml-3">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{currentUser?.username}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{currentUser?.role}</p>
           </div>
         </div>
-        <div className="ml-4 flex items-center md:ml-6">
-          <button
-            onClick={toggleTheme}
-            className="p-1 text-gray-400 rounded-full hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-800"
-          >
-            {theme === 'light' ? <Moon className="w-6 h-6" /> : <Sun className="w-6 h-6" />}
-          </button>
-
-          {/* Menu Utilisateur */}
-          <div className="ml-3 relative">
-            <div>
-              <button className="max-w-xs bg-white dark:bg-gray-800 flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-800">
-                <span className="sr-only">Ouvrir le menu utilisateur</span>
-                <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold">
-                  {user?.username.charAt(0).toUpperCase()}
-                </div>
-              </button>
-            </div>
-            {/* Dropdown Menu (à implémenter)
-              <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5">
-                ...
-              </div>
-            */}
-          </div>
-          <button
-            onClick={logout}
-            title="Se déconnecter"
-            className="ml-4 p-1 text-gray-400 rounded-full hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-gray-800"
-          >
-            <LogOut className="w-6 h-6" />
-          </button>
-        </div>
       </div>
-    </div>
+    </header>
   );
-}
+};
 
-/**
- * Sidebar (Mobile)
- */
-function MobileSidebar({ sidebarOpen, setSidebarOpen, setCurrentPage }) {
-  return (
-    <div className={`fixed inset-0 flex z-40 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
-      {/* Overlay */}
-      <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)}></div>
-      
-      {/* Contenu Sidebar */}
-      <div className="relative flex-1 flex flex-col max-w-xs w-full bg-gray-800 dark:bg-gray-900">
-        <div className="absolute top-0 right-0 -mr-12 pt-2">
-          <button
-            className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span className="sr-only">Fermer le menu</span>
-            <X className="h-6 w-6 text-white" />
-          </button>
-        </div>
-        <SidebarContent setCurrentPage={setCurrentPage} />
-      </div>
-      <div className="flex-shrink-0 w-14"></div>
-    </div>
-  );
-}
+// Routeur de contenu de page
+const PageContent = ({ page, currentUser, selectedProject }) => {
+  switch (page) {
+    case 'dashboard':
+      return <DashboardPage />;
+    case 'projects':
+      return <ProjectsPage />;
+    case 'plans':
+      return <PlansPage selectedProject={selectedProject} />;
+    // ... autres cas pour 'blocks', 'lots', 'revisions', 'users', 'settings'
+    default:
+      return <DashboardPage />;
+  }
+};
 
-/**
- * Sidebar (Desktop)
- */
-function DesktopSidebar({ setCurrentPage, currentPage }) {
-  return (
-    <div className="hidden md:flex md:flex-shrink-0">
-      <div className="flex flex-col w-64">
-        <div className="flex flex-col h-0 flex-1 bg-gray-800 dark:bg-gray-900">
-          <SidebarContent setCurrentPage={setCurrentPage} currentPage={currentPage} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/**
- * Contenu commun des Sidebars
- */
-function SidebarContent({ setCurrentPage, currentPage }) {
-  const { user } = useAuth();
-  
-  const navItems = [
-    { name: 'Tableau de bord', icon: LayoutDashboard, page: 'dashboard', roles: ['Gérant principal', 'Administrateur secondaire', 'Ingénieur de suivi', 'Visiteur'] },
-    { name: 'Projets', icon: Briefcase, page: 'projects', roles: ['Gérant principal', 'Administrateur secondaire', 'Ingénieur de suivi', 'Visiteur'] },
-    { name: 'Plans', icon: FileText, page: 'plans', roles: ['Gérant principal', 'Administrateur secondaire', 'Ingénieur de suivi', 'Visiteur'] },
-    { name: 'Lots & Blocs', icon: Layers, page: 'lots', roles: ['Gérant principal', 'Administrateur secondaire'] },
-    { name: 'Utilisateurs', icon: Users, page: 'users', roles: ['Gérant principal', 'Administrateur secondaire'] },
-    { name: 'Paramètres', icon: Settings, page: 'settings', roles: ['Gérant principal'] },
+// --- Composants de Page (Exemples) ---
+
+// Tableau de bord
+const DashboardPage = () => {
+  const pieData = [
+    { name: 'Approuvés CTC', value: 40, color: '#10B981' }, // green-500
+    { name: 'En cours', value: 30, color: '#3B82F6' }, // blue-500
+    { name: 'Déposés MO', value: 20, color: '#F59E0B' }, // amber-500
+    { name: 'Obsolètes', value: 10, color: '#EF4444' }, // red-500
+  ];
+
+  const barData = [
+    { name: 'DUNE', "Plans Actifs": 40, "Révisions": 15 },
+    { name: 'CHO', "Plans Actifs": 30, "Révisions": 5 },
+    { name: 'PHARE', "Plans Actifs": 120, "Révisions": 45 },
   ];
   
-  const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));
+  const StatCard = ({ title, value, icon, colorClass }) => (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex items-center space-x-4">
+      <div className={`p-3 rounded-full ${colorClass} text-white`}>
+        {React.createElement(icon, { className: "w-6 h-6" })}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
+        <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{value}</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-      <div className="flex items-center flex-shrink-0 px-4">
-        <div className="p-2 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-lg">
-          <BookMarked className="w-8 h-8 text-white" />
-        </div>
-        <h1 className="ml-3 text-2xl font-bold text-white">DUNE</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord</h1>
+      
+      {/* Cartes de statistiques */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Projets Actifs" value={mockProjects.filter(p => p.statut !== 'achevé').length} icon={FolderKanban} colorClass="bg-blue-500" />
+        <StatCard title="Plans Totaux" value={mockPlans.length} icon={FileText} colorClass="bg-green-500" />
+        <StatCard title="Approbations CTC" value={mockPlans.filter(p => p.statut === 'Approuvé CTC').length} icon={CheckCircle} colorClass="bg-yellow-500" />
+        <StatCard title="Utilisateurs" value={mockUsers.length} icon={Users} colorClass="bg-purple-500" />
       </div>
-      <nav className="mt-5 flex-1 px-2 space-y-1">
-        {filteredNavItems.map((item) => (
-          <button
-            key={item.name}
-            onClick={() => setCurrentPage(item.page)}
-            className={`
-              ${currentPage === item.page
-                ? 'bg-gray-900 dark:bg-gray-700 text-white'
-                : 'text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white'}
-              group flex items-center px-2 py-2 text-sm font-medium rounded-md w-full
-            `}
-          >
-            <item.icon className="mr-3 flex-shrink-0 h-6 w-6 text-gray-400 group-hover:text-gray-300" />
-            {item.name}
-          </button>
-        ))}
-      </nav>
-      <div className="flex-shrink-0 flex border-t border-gray-700 dark:border-gray-800 p-4">
-        <div className="flex-shrink-0 group block">
-          <div className="flex items-center">
-            <div>
-              <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold">
-                {user?.username.charAt(0).toUpperCase()}
-              </div>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white">{user?.username}</p>
-              <p className="text-xs font-medium text-gray-400 group-hover:text-gray-300">{user?.role}</p>
-            </div>
-          </div>
+
+      {/* Graphiques */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Statut des Plans</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name) => [value, name]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité par Projet</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={barData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+              <XAxis dataKey="name" stroke={isDarkMode ? '#9CA3AF' : '#6B7280'} />
+              <YAxis stroke={isDarkMode ? '#9CA3AF' : '#6B7280'} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: isDarkMode ? '#374151' : '#FFFFFF', 
+                  borderColor: isDarkMode ? '#4B5563' : '#E5E7EB' 
+                }} 
+                itemStyle={{ color: isDarkMode ? '#F3F4F6' : '#111827' }} 
+              />
+              <Legend />
+              <Bar dataKey="Plans Actifs" fill="#3B82F6" />
+              <Bar dataKey="Révisions" fill="#10B981" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
   );
-}
+};
 
-/**
- * Conteneur du Contenu Principal
- */
-function MainContent({ currentPage }) {
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return <DashboardPage />;
-      case 'projects':
-        return <ProjectsPage />;
-      case 'plans':
-        return <PlansPage />;
-      case 'lots':
-        return <LotsBlocsPage />;
-      case 'users':
-        return <UsersPage />;
-      case 'settings':
-        return <SettingsPage />;
-      default:
-        return <DashboardPage />;
+// Page Projets
+const ProjectsPage = () => {
+  // Statut pour filtrer la liste des projets
+  const [filter, setFilter] = useState('');
+  
+  const getStatusColor = (statut) => {
+    switch (statut) {
+      case 'en étude': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'en exécution': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+      case 'achevé': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'suspendu': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
   };
 
   return (
-    <main className="flex-1 relative overflow-y-auto focus:outline-none">
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        {renderPage()}
-      </div>
-    </main>
-  );
-}
-
-// --- PAGES DE L'APPLICATION ---
-
-/**
- * Page: Tableau de bord
- */
-function DashboardPage() {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tableau de bord</h1>
-      
-      {/* Cartes de statistiques */}
-      <div className="grid grid-cols-1 gap-5 mt-6 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Projets Actifs" value="12" icon={Briefcase} color="bg-blue-500" />
-        <StatCard title="Plans Approuvés CTC" value="185" icon={ShieldCheck} color="bg-green-500" />
-        <StatCard title="Plans en Attente" value="32" icon={AlertCircle} color="bg-yellow-500" />
-        <StatCard title="Utilisateurs" value="8" icon={Users} color="bg-purple-500" />
-      </div>
-
-      {/* Graphiques */}
-      <div className="grid grid-cols-1 gap-5 mt-6 lg:grid-cols-2">
-        <ChartCard title="Statut des Projets">
-          <PieChart className="w-full h-64 text-gray-400" />
-          <p className="text-center text-gray-500 dark:text-gray-400">Graphique (Camembert)</p>
-        </ChartCard>
-        <ChartCard title="Révisions par mois">
-          <BarChart2 className="w-full h-64 text-gray-400" />
-          <p className="text-center text-gray-500 dark:text-gray-400">Graphique (Barres)</p>
-        </ChartCard>
-      </div>
-      
-      {/* Projets Récents */}
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Projets Récents</h2>
-        <div className="mt-4 bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-            {/* Simuler des données */}
-            <li className="px-6 py-4 flex items-center justify-between">
-              <span className="font-medium dark:text-white">PROJET PILOTE DUNE (DUNE)</span>
-              <span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">En Étude</span>
-            </li>
-            <li className="px-6 py-4 flex items-center justify-between">
-              <span className="font-medium dark:text-white">TOUR CÔTIÈRE ORAN (TCO)</span>
-              <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">En Exécution</span>
-            </li>
-            <li className="px-6 py-4 flex items-center justify-between">
-              <span className="font-medium dark:text-white">LOGEMENTS OPGI (OPGI-ALG)</span>
-              <span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">Achevé</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ title, value, icon: Icon, color }) {
-  return (
-    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-lg rounded-lg">
-      <div className="p-5">
-        <div className="flex items-center">
-          <div className={`flex-shrink-0 p-3 rounded-md ${color}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-          <div className="ml-5 w-0 flex-1">
-            <dl>
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{title}</dt>
-              <dd className="text-3xl font-bold text-gray-900 dark:text-white">{value}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChartCard({ title, children }) {
-  return (
-    <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-5">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-white">{title}</h3>
-      <div className="mt-4">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Page: Projets
- */
-function ProjectsPage() {
-  const { token, API_BASE_URL } = useAuth();
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchProjects = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(`${API_BASE_URL}/projects`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error('Impossible de récupérer les projets. Problème d\'autorisation ou de réseau.');
-        }
-        const data = await response.json();
-        setProjects(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (token) {
-      fetchProjects();
-    }
-  }, [token, API_BASE_URL]);
-
-  return (
-    <div>
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Projets</h1>
-        <button className="flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Projets</h1>
+        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
           <Plus className="w-5 h-5 mr-2" />
           Nouveau Projet
         </button>
       </div>
-
-      {loading && <p className="mt-4 dark:text-white">Chargement des projets...</p>}
-      {error && (
-        <div className="mt-4 flex items-center p-3 text-sm text-red-700 bg-red-100 rounded-md dark:bg-red-900 dark:text-red-200">
-          <AlertCircle className="w-5 h-5 mr-2" />
-          <span>{error}</span>
+      
+      {/* Barre de filtre et de recherche */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4">
+        <div className="flex-1 relative">
+          <input 
+            type="text" 
+            placeholder="Rechercher un projet..."
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
-      )}
-
-      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {!loading && !error && projects.map(project => (
-          <div key={project.id} className="bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden transition-transform hover:scale-105">
-            <div className="p-5">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-semibold text-amber-500 uppercase">{project.abreviation}</p>
-                  <h3 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">{project.nom}</h3>
-                </div>
-                <MoreVertical className="w-5 h-5 text-gray-400" />
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <MapPin className="w-4 h-4 mr-2" />
-                  {project.wilaya}
-                </div>
-                <div className="mt-2">
-                  <span 
-                    className={`px-3 py-1 text-xs font-medium rounded-full 
-                      ${project.statut === 'en étude' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
-                      ${project.statut === 'en exécution' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
-                    `}
-                  >
-                    {project.statut}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Page: Plans
- */
-function PlansPage() {
-  const MOCK_PLANS = [
-    { id: 1, ref: 'DUNE-ADM-ARCH-001-R00', titre: 'Plan de Masse', statut: 'Approuvé CTC', projet: 'DUNE', lot: 'ARCH' },
-    { id: 2, ref: 'DUNE-ADM-ARCH-002-R01', titre: 'Façade Principale', statut: 'En cours d\'approbation', projet: 'DUNE', lot: 'ARCH' },
-    { id: 3, ref: 'TCO-HEB-GCIV-010-R00', titre: 'Plan de Coffrage Étage 1', statut: 'Approuvé CTC', projet: 'TCO', lot: 'GCIV' },
-    { id: 4, ref: 'TCO-REST-ELEC-005-R00', titre: 'Schéma Unifilaire TGBT', statut: 'Déposé au MO', projet: 'TCO', lot: 'ELEC' },
-  ];
-  
-  return (
-    <div>
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestion des Plans</h1>
-        <button className="flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700">
-          <FileUp className="w-5 h-5 mr-2" />
-          Nouveau Plan
+        <select 
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="pl-3 pr-10 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Tous les statuts</option>
+          <option value="en étude">En étude</option>
+          <option value="en exécution">En exécution</option>
+          <option value="achevé">Achevé</option>
+          <option value="suspendu">Suspendu</option>
+        </select>
+        <button className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+          <Download className="w-5 h-5 mr-2" />
+          Exporter (PDF/Excel)
         </button>
       </div>
 
-      {/* Filtres */}
-      <div className="mt-6 flex gap-4">
-        <select className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-          <option>Filtrer par Projet</option>
-          <option>DUNE</option>
-          <option>TCO</option>
-        </select>
-        <select className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-          <option>Filtrer par Lot</option>
-          <option>ARCH</option>
-          <option>GCIV</option>
-          <option>ELEC</option>
-        </select>
-        <select className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-          <option>Filtrer par Statut</option>
-          <option>Approuvé CTC</option>
-          <option>En cours</option>
-        </select>
-      </div>
-      
-      {/* Tableau des plans */}
-      <div className="mt-6 bg-white dark:bg-gray-800 shadow rounded-lg overflow-x-auto">
+      {/* Tableau des projets */}
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Référence</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Titre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Projet / Lot</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nom du Projet</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Localisation</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Responsable</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
+              <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {MOCK_PLANS.map(plan => (
-              <tr key={plan.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{plan.ref}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span 
-                    className={`px-3 py-1 text-xs font-medium rounded-full 
-                      ${plan.statut === 'Approuvé CTC' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
-                      ${plan.statut === 'En cours d\'approbation' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ''}
-                      ${plan.statut === 'Déposé au MO' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
-                    `}
-                  >
-                    {plan.statut}
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {mockProjects.filter(p => filter ? p.statut === filter : true).map((project) => (
+              <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nom}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{project.abreviation}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <div>{project.commune}, {project.wilaya}</div>
+                  <div className_="text-xs text-gray-400">{project.adresse}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {mockUsers.find(u => u.id === project.id_responsable)?.username || 'N/A'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(project.statut)}`}>
+                    {project.statut}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-bold">{plan.projet}</span> / {plan.lot}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button className="text-amber-600 hover:text-amber-800 mr-3"><History className="w-5 h-5" /></button>
-                  <button className="text-blue-600 hover:text-blue-800 mr-3"><Edit2 className="w-5 h-5" /></button>
-                  <button className="text-red-600 hover:text-red-800"><Trash2 className="w-5 h-5" /></button>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"><Edit2 className="w-5 h-5" /></button>
+                  <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"><Trash2 className="w-5 h-5" /></button>
                 </td>
               </tr>
             ))}
@@ -698,78 +508,90 @@ function PlansPage() {
       </div>
     </div>
   );
-}
+};
 
-/**
- * Page: Lots & Blocs
- */
-function LotsBlocsPage() {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestion des Lots & Blocs</h1>
-      <p className="mt-4 text-gray-600 dark:text-gray-400">
-        Simulation de la page de gestion des lots (ARCH, GCIV, ELEC...) et des blocs (ADM, HEB, REST...). 
-        Accessible uniquement par les administrateurs.
-      </p>
-      {/* Contenu à implémenter */}
-    </div>
-  );
-}
-
-/**
- * Page: Utilisateurs
- */
-function UsersPage() {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestion des Utilisateurs</h1>
-      <p className="mt-4 text-gray-600 dark:text-gray-400">
-        Simulation de la page de gestion des utilisateurs (Gérant, Admin, Ingénieur...). 
-        Accessible uniquement par les administrateurs.
-      </p>
-      {/* Contenu à implémenter */}
-    </div>
-  );
-}
-
-/**
- * Page: Paramètres
- */
-function SettingsPage() {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Paramètres</h1>
-      <p className="mt-4 text-gray-600 dark:text-gray-400">
-        Simulation de la page des paramètres généraux de l'application.
-        Accessible uniquement par le gérant principal.
-      </p>
-      {/* Contenu à implémenter */}
-    </div>
-  );
-}
-
-/**
- * Composant Racine de l'application
- */
-export default function App() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <Root />
-      </AuthProvider>
-    </ThemeProvider>
-  );
-}
-
-function Root() {
-  const { user } = useAuth();
-  
-  // Affiche l'écran de connexion si l'utilisateur n'est pas authentifié
-  if (!user) {
-    return <LoginPage />;
+// Page Plans
+const PlansPage = ({ selectedProject }) => {
+  if (!selectedProject) {
+    return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
+  
+  const projectPlans = mockPlans.filter(p => p.id_projet === selectedProject.id);
 
-  // Affiche l'application principale si l'utilisateur est connecté
-  return <AppLayout />;
-}
+  const getStatusIcon = (statut) => {
+    switch (statut) {
+      case 'Approuvé CTC': return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'En cours d'approbation': return <Clock className="w-5 h-5 text-yellow-500" />;
+      case 'Déposé au MO': return <FileText className="w-5 h-5 text-blue-500" />;
+      case 'Obsolète': return <XCircle className="w-5 h-5 text-red-500" />;
+      default: return <Clock className="w-5 h-5 text-gray-500" />;
+    }
+  };
 
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
+        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+          <Plus className="w-5 h-5 mr-2" />
+          Nouveau Plan
+        </button>
+      </div>
+
+      {/* Barre de filtre (simplifiée) */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4">
+        <input 
+          type="text" 
+          placeholder="Filtrer par référence, titre, lot..."
+          className="w-full pl-4 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {/* Des filtres plus avancés (par Lot, Bloc, Statut) pourraient être ajoutés ici */}
+      </div>
+
+      {/* Tableau des plans */}
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Statut</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Référence</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Titre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Infos</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dernière MàJ</th>
+              <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {projectPlans.map((plan) => (
+              <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center space-x-2">
+                    {getStatusIcon(plan.statut)}
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{plan.statut}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-bold text-gray-900 dark:text-gray-100">{plan.reference}</div>
+                  <div className="text-sm text-blue-600 dark:text-blue-400">{plan.fichier_pdf}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <div><span className="font-semibold">Bloc:</span> {mockBlocks.find(b => b.id === plan.id_bloc)?.abreviation || 'N/A'}</div>
+                  <div><span className="font-semibold">Lot:</span> {mockLots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <div>{plan.historique[plan.historique.length - 1].date}</div>
+                  <div className="text-xs text-gray-400">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  <button title="Gérer les révisions" className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"><FileDiff className="w-5 h-5" /></button>
+                  <button title="Copier la référence" className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"><Copy className="w-5 h-5" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
