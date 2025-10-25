@@ -499,6 +499,7 @@ const ProjectsPage = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                   <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"><Edit2 className="w-5 h-5" /></button>
+
                   <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"><Trash2 className="w-5 h-5" /></button>
                 </td>
               </tr>
@@ -521,7 +522,7 @@ const PlansPage = ({ selectedProject }) => {
   const getStatusIcon = (statut) => {
     switch (statut) {
       case 'Approuvé CTC': return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'En cours d'approbation': return <Clock className="w-5 h-5 text-yellow-500" />;
+      case "En cours d'approbation": return <Clock className="w-5 h-5 text-yellow-500" />; // <-- CORRECTION ICI
       case 'Déposé au MO': return <FileText className="w-5 h-5 text-blue-500" />;
       case 'Obsolète': return <XCircle className="w-5 h-5 text-red-500" />;
       default: return <Clock className="w-5 h-5 text-gray-500" />;
@@ -574,7 +575,7 @@ const PlansPage = ({ selectedProject }) => {
                   <div className="text-sm font-bold text-gray-900 dark:text-gray-100">{plan.reference}</div>
                   <div className="text-sm text-blue-600 dark:text-blue-400">{plan.fichier_pdf}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
+                <td className="px-6 py-4 whitespace-Nrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   <div><span className="font-semibold">Bloc:</span> {mockBlocks.find(b => b.id === plan.id_bloc)?.abreviation || 'N/A'}</div>
                   <div><span className="font-semibold">Lot:</span> {mockLots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
