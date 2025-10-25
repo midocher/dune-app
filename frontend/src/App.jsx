@@ -8,7 +8,7 @@ import {
   LayoutDashboard, FolderKanban, FileText, Settings, Users, Building, MapPin, 
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
-  Package, Wrench, UserCog, AlertCircle // NOUVELLES ICÔNES
+  Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash // NOUVELLES ICÔNES
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
@@ -40,20 +40,20 @@ const mockProjects = [
   { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", id_responsable: 'u2', statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
 ];
 
-const mockLots = [
+const mockLotsInit = [ // Renommé en Init
   { id: 'l1', id_projet: 'p1', nom: 'Architecture', abreviation: 'ARCH', ctc_approbation: true, sousLots: [{ id: 'sl1', nom: 'Plans de masse', abreviation: 'PM' }] },
   { id: 'l2', id_projet: 'p1', nom: 'Génie Civil', abreviation: 'GCIV', ctc_approbation: true, sousLots: [] },
   { id: 'l3', id_projet: 'p1', nom: 'Électricité', abreviation: 'ELEC', ctc_approbation: false, sousLots: [{ id: 'sl2', nom: 'Courants Forts', abreviation: 'CF' }, { id: 'sl3', nom: 'Courants Faibles', abreviation: 'Cf' }] },
   { id: 'l4', id_projet: 'p2', nom: 'Architecture', abreviation: 'ARCH', ctc_approbation: true, sousLots: [] },
 ];
 
-const mockBlocks = [
+const mockBlocksInit = [ // Renommé en Init
   { id: 'b1', id_projet: 'p1', nom: 'Administration', abreviation: 'ADM' },
   { id: 'b2', id_projet: 'p1', nom: 'Hébergement', abreviation: 'HEB' },
   { id: 'b3', id_projet: 'p2', nom: 'Restaurant', abreviation: 'REST' },
 ];
 
-const mockPlans = [
+const mockPlansInit = [ // Renommé en Init
   { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "sim-plan-a.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
   { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
   { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
@@ -94,19 +94,24 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useDarkMode();
 
   // État de l'application
-  // MODIFIÉ: Initialisation à vide. Sera rempli au login.
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+  
+  // NOUVEAU: Les données sont dans l'état de l'App
+  const [blocks, setBlocks] = useState(mockBlocksInit);
+  const [lots, setLots] = useState(mockLotsInit);
+  const [plans, setPlans] = useState(mockPlansInit);
+  const [users, setUsers] = useState(mockUsers);
   
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
     return projects.find(p => p.id === selectedProjectId);
   }, [projects, selectedProjectId]);
   
-  // MODIFIÉ: Logique de login complète
+  // Logique de login complète
   const handleLogin = (username, password) => {
     // 1. Authentification de l'utilisateur
-    const user = mockUsers.find(u => u.username === username && u.password === password);
+    const user = users.find(u => u.username === username && u.password === password);
     
     if (user) {
       setCurrentUser(user);
@@ -117,13 +122,12 @@ export default function App() {
       let userProjects = [];
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
         // Les admins voient TOUS les projets
-        userProjects = mockProjects;
+        userProjects = mockProjects; // Utilise la liste statique complète
       } else if (user.role === 'Ingénieur de suivi') {
         // Les ingénieurs ne voient que LEURS projets
         userProjects = mockProjects.filter(p => p.id_responsable === user.id);
       }
-      // Les visiteurs pourraient avoir une logique différente (ex: projets avec acces_visiteur = true)
-
+      
       setProjects(userProjects);
 
       // 3. Sélectionner le premier projet de la liste filtrée par défaut
@@ -138,7 +142,7 @@ export default function App() {
     }
   };
 
-  // MODIFIÉ: Déconnexion complète
+  // Déconnexion complète
   const handleLogout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
@@ -180,11 +184,15 @@ export default function App() {
             currentUser={currentUser} 
             selectedProject={selectedProject}
             isDarkMode={isDarkMode}
-            // MODIFIÉ: Transmission de toutes les données pour les sous-pages
-            mockBlocks={mockBlocks}
-            mockLots={mockLots}
-            mockPlans={mockPlans}
-            mockUsers={mockUsers}
+            // MODIFIÉ: Transmission de toutes les données et de leurs setters
+            blocks={blocks}
+            setBlocks={setBlocks}
+            lots={lots}
+            setLots={setLots}
+            plans={plans}
+            setPlans={setPlans}
+            users={users}
+            setUsers={setUsers}
           />
         </main>
       </div>
@@ -287,7 +295,6 @@ const Sidebar = ({ currentPage, setCurrentPage, handleLogout, currentUser }) => 
         {/* Section spécifique au projet */}
         <div className="pt-4 mt-4 border-t dark:border-gray-700">
           <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Gestion du projet</h3>
-          {/* MODIFIÉ: Icônes corrigées */}
           <NavItem icon={Package} label="Blocs" pageName="blocks" />
           <NavItem icon={Layers} label="Lots & Sous-Lots" pageName="lots" />
           <NavItem icon={FileText} label="Plans" pageName="plans" />
@@ -322,7 +329,6 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
     <header className="h-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0">
       {/* Sélecteur de projet */}
       <div className="flex items-center">
-        {/* MODIFIÉ: Affiche le sélecteur seulement s'il y a plus d'un projet */}
         {projects.length > 1 ? (
           <>
             <label htmlFor="project-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Projet Actif :</label>
@@ -338,13 +344,11 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
             </select>
           </>
         ) : projects.length === 1 ? (
-          // Affiche le nom du projet s'il n'y en a qu'un
           <div className="flex items-center space-x-2">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Projet Actif :</span>
             <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{projects[0].nom}</span>
           </div>
         ) : (
-          // N'affiche rien si aucun projet n'est assigné
           <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Aucun projet assigné</span>
         )}
       </div>
@@ -374,7 +378,7 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
 // MODIFIÉ: Routeur de contenu de page complet
 const PageContent = ({ 
   page, currentUser, selectedProject, isDarkMode, 
-  mockBlocks, mockLots, mockPlans, mockUsers 
+  blocks, setBlocks, lots, setLots, plans, setPlans, users, setUsers
 }) => {
   
   // Composant générique pour les pages en construction
@@ -390,19 +394,40 @@ const PageContent = ({
     case 'dashboard':
       return <DashboardPage isDarkMode={isDarkMode} />;
     case 'projects':
-      return <ProjectsPage />; // Note: La page Projets gère la liste complète, pas seulement le projet sélectionné
+      return <ProjectsPage />; // Page de gestion de TOUS les projets
     case 'plans':
-      return <PlansPage selectedProject={selectedProject} mockPlans={mockPlans} mockBlocks={mockBlocks} mockLots={mockLots} />;
+      return <PlansPage 
+                selectedProject={selectedProject} 
+                plans={plans} 
+                setPlans={setPlans} 
+                blocks={blocks} 
+                lots={lots} 
+              />;
     
     // NOUVEAU: Ajout des autres pages
     case 'blocks':
-      return <BlocksPage selectedProject={selectedProject} mockBlocks={mockBlocks} />;
+      return <BlocksPage 
+                selectedProject={selectedProject} 
+                blocks={blocks} 
+                setBlocks={setBlocks} 
+              />;
     case 'lots':
-      return <LotsPage selectedProject={selectedProject} mockLots={mockLots} />;
+      return <LotsPage 
+                selectedProject={selectedProject} 
+                lots={lots} 
+                setLots={setLots} 
+              />;
     case 'revisions':
-      return <RevisionsPage selectedProject={selectedProject} mockPlans={mockPlans} />;
+      return <RevisionsPage 
+                selectedProject={selectedProject} 
+                plans={plans} 
+              />;
     case 'users':
-      return <UsersPage currentUser={currentUser} mockUsers={mockUsers} />;
+      return <UsersPage 
+                currentUser={currentUser} 
+                users={users} 
+                setUsers={setUsers} 
+              />;
     case 'settings':
       return <PlaceholderPage title="Paramètres" icon={Wrench} />;
       
@@ -448,8 +473,8 @@ const DashboardPage = ({ isDarkMode }) => {
       {/* Cartes de statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Projets Actifs" value={mockProjects.filter(p => p.statut !== 'achevé').length} icon={FolderKanban} colorClass="bg-blue-500" />
-        <StatCard title="Plans Totaux" value={mockPlans.length} icon={FileText} colorClass="bg-green-500" />
-        <StatCard title="Approbations CTC" value={mockPlans.filter(p => p.statut === 'Approuvé CTC').length} icon={CheckCircle} colorClass="bg-yellow-500" />
+        <StatCard title="Plans Totaux" value={mockPlansInit.length} icon={FileText} colorClass="bg-green-500" />
+        <StatCard title="Approbations CTC" value={mockPlansInit.filter(p => p.statut === 'Approuvé CTC').length} icon={CheckCircle} colorClass="bg-yellow-500" />
         <StatCard title="Utilisateurs" value={mockUsers.length} icon={Users} colorClass="bg-purple-500" />
       </div>
 
@@ -512,7 +537,10 @@ const ProjectsPage = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Projets</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={() => alert("La création de projet sera ajoutée prochainement.")}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Nouveau Projet
         </button>
@@ -539,7 +567,10 @@ const ProjectsPage = () => {
           <option value="achevé">Achevé</option>
           <option value="suspendu">Suspendu</option>
         </select>
-        <button className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+        <button 
+          onClick={() => alert("L'exportation sera ajoutée prochainement.")}
+          className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+        >
           <Download className="w-5 h-5 mr-2" />
           Exporter (PDF/Excel)
         </button>
@@ -558,7 +589,6 @@ const ProjectsPage = () => {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {/* MODIFIÉ: Utilise la liste complète mockProjects ici, car c'est la page de *gestion* de tous les projets */}
             {mockProjects.filter(p => filter ? p.statut === filter : true).map((project) => (
               <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -578,9 +608,19 @@ const ProjectsPage = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"><Edit2 className="w-5 h-5" /></button>
+                  <button 
+                    onClick={() => alert("La modification de projet sera ajoutée prochainement.")}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
 
-                  <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"><Trash2 className="w-5 h-5" /></button>
+                  <button 
+                    onClick={() => alert("La suppression de projet sera ajoutée prochainement.")}
+                    className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -592,12 +632,12 @@ const ProjectsPage = () => {
 };
 
 // Page Plans
-const PlansPage = ({ selectedProject, mockPlans, mockBlocks, mockLots }) => { // MODIFIÉ: réception des données
+const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots }) => { // MODIFIÉ: réception des données
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
   
-  const projectPlans = mockPlans.filter(p => p.id_projet === selectedProject.id);
+  const projectPlans = plans.filter(p => p.id_projet === selectedProject.id);
 
   const getStatusIcon = (statut) => {
     switch (statut) {
@@ -613,7 +653,10 @@ const PlansPage = ({ selectedProject, mockPlans, mockBlocks, mockLots }) => { //
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={() => alert("La création de plan sera ajoutée prochainement.")}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Nouveau Plan
         </button>
@@ -657,17 +700,29 @@ const PlansPage = ({ selectedProject, mockPlans, mockBlocks, mockLots }) => { //
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{plan.titre}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  <div><span className="font-semibold">Bloc:</span> {mockBlocks.find(b => b.id === plan.id_bloc)?.abreviation || 'N/A'}</div>
-                  <div><span className="font-semibold">Lot:</span> {mockLots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
+                  <div><span className="font-semibold">Bloc:</span> {blocks.find(b => b.id === plan.id_bloc)?.abreviation || 'N/A'}</div>
+                  <div><span className="font-semibold">Lot:</span> {lots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   <div>{plan.historique[plan.historique.length - 1].date}</div>
                   <div className="text-xs text-gray-400">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button title="Gérer les révisions" className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"><FileDiff className="w-5 h-5" /></button>
+                  <button 
+                    onClick={() => alert("La gestion des révisions sera ajoutée prochainement.")}
+                    title="Gérer les révisions" 
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                  >
+                    <FileDiff className="w-5 h-5" />
+                  </button>
 
-                  <button title="Copier la référence" className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"><Copy className="w-5 h-5" /></button>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(plan.reference)}
+                    title="Copier la référence" 
+                    className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  >
+                    <Copy className="w-5 h-5" />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -678,19 +733,146 @@ const PlansPage = ({ selectedProject, mockPlans, mockBlocks, mockLots }) => { //
   );
 };
 
-// NOUVEAU: Page Blocs
-const BlocksPage = ({ selectedProject, mockBlocks }) => {
+// --- NOUVEAU: Modal Générique ---
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg m-4">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="p-6">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- NOUVEAU: Formulaire pour les Blocs ---
+const BlockForm = ({ block, onSave, onCancel }) => {
+  const [nom, setNom] = useState(block ? block.nom : '');
+  const [abreviation, setAbreviation] = useState(block ? block.abreviation : '');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...block, // Garde l'id et id_projet si en modification
+      nom,
+      abreviation: abreviation.toUpperCase(),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="block-nom" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Bloc</label>
+        <input
+          type="text"
+          id="block-nom"
+          value={nom}
+          onChange={(e) => setNom(e.target.value)}
+          required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
+        />
+      </div>
+      <div>
+        <label htmlFor="block-abreviation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation (auto-majuscule)</label>
+        <input
+          type="text"
+          id="block-abreviation"
+          value={abreviation}
+          onChange={(e) => setAbreviation(e.target.value)}
+          required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
+        />
+      </div>
+      <div className="flex justify-end space-x-3 pt-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          Annuler
+        </button>
+        <button
+          type="submit"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  );
+};
+
+
+// NOUVEAU: Page Blocs (avec CUD)
+const BlocksPage = ({ selectedProject, blocks, setBlocks }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBlock, setEditingBlock] = useState(null); // null = nouveau, objet = modification
+
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
 
-  const projectBlocks = mockBlocks.filter(b => b.id_projet === selectedProject.id);
+  const projectBlocks = blocks.filter(b => b.id_projet === selectedProject.id);
+
+  const openModalToEdit = (block) => {
+    setEditingBlock(block);
+    setIsModalOpen(true);
+  };
+
+  const openModalToCreate = () => {
+    setEditingBlock(null);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingBlock(null);
+  };
+
+  const handleSave = (blockData) => {
+    if (editingBlock) {
+      // Modification
+      setBlocks(blocks.map(b => b.id === editingBlock.id ? { ...b, ...blockData } : b));
+    } else {
+      // Création
+      const newBlock = {
+        ...blockData,
+        id: 'b' + Date.now(), // ID unique simple
+        id_projet: selectedProject.id
+      };
+      setBlocks([...blocks, newBlock]);
+    }
+    closeModal();
+  };
+
+  const handleDelete = (blockId) => {
+    // Remplacer par une confirmation modale dans une future version
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce bloc ?")) {
+      setBlocks(blocks.filter(b => b.id !== blockId));
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Blocs pour : {selectedProject.nom}</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={openModalToCreate}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Nouveau Bloc
         </button>
@@ -710,31 +892,225 @@ const BlocksPage = ({ selectedProject, mockBlocks }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{block.nom}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{block.abreviation}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
-                  <button className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
+                  <button onClick={() => openModalToEdit(block)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
+                  <button onClick={() => handleDelete(block.id)} className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={closeModal} 
+        title={editingBlock ? "Modifier le Bloc" : "Créer un Nouveau Bloc"}
+      >
+        <BlockForm 
+          block={editingBlock} 
+          onSave={handleSave} 
+          onCancel={closeModal}
+        />
+      </Modal>
     </div>
   );
 };
 
-// NOUVEAU: Page Lots
-const LotsPage = ({ selectedProject, mockLots }) => {
+// --- NOUVEAU: Formulaire pour les Lots ---
+const LotForm = ({ lot, onSave, onCancel }) => {
+  const [nom, setNom] = useState(lot ? lot.nom : '');
+  const [abreviation, setAbreviation] = useState(lot ? lot.abreviation : '');
+  const [ctc, setCtc] = useState(lot ? lot.ctc_approbation : false);
+  const [sousLots, setSousLots] = useState(lot ? lot.sousLots : []);
+  const [newSousLotNom, setNewSousLotNom] = useState('');
+  const [newSousLotAbrev, setNewSousLotAbrev] = useState('');
+
+  const handleAddSousLot = () => {
+    if (newSousLotNom && newSousLotAbrev) {
+      setSousLots([...sousLots, {
+        id: 'sl' + Date.now(),
+        nom: newSousLotNom,
+        abreviation: newSousLotAbrev.toUpperCase()
+      }]);
+      setNewSousLotNom('');
+      setNewSousLotAbrev('');
+    }
+  };
+
+  const handleRemoveSousLot = (id) => {
+    setSousLots(sousLots.filter(sl => sl.id !== id));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...lot, // Garde l'id et id_projet si en modification
+      nom,
+      abreviation: abreviation.toUpperCase(),
+      ctc_approbation: ctc,
+      sousLots: sousLots
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      <div>
+        <label htmlFor="lot-nom" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Lot</label>
+        <input
+          type="text"
+          id="lot-nom"
+          value={nom}
+          onChange={(e) => setNom(e.target.value)}
+          required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
+        />
+      </div>
+      <div>
+        <label htmlFor="lot-abreviation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation (auto-majuscule)</label>
+        <input
+          type="text"
+          id="lot-abreviation"
+          value={abreviation}
+          onChange={(e) => setAbreviation(e.target.value)}
+          required
+          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700"
+        />
+      </div>
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          id="lot-ctc"
+          checked={ctc}
+          onChange={(e) => setCtc(e.target.checked)}
+          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+        <label htmlFor="lot-ctc" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Soumis à approbation CTC</label>
+      </div>
+      
+      {/* Gestion des Sous-Lots */}
+      <div className="space-y-2 pt-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sous-Lots</label>
+        {sousLots.length > 0 && (
+          <div className="space-y-2 max-h-32 overflow-y-auto border dark:border-gray-600 rounded-md p-2">
+            {sousLots.map(sl => (
+              <div key={sl.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                <span className="text-sm">{sl.nom} ({sl.abreviation})</span>
+                <button type="button" onClick={() => handleRemoveSousLot(sl.id)} className="text-red-500 hover:text-red-700">
+                  <Trash className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-end space-x-2">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500">Nom sous-lot</label>
+            <input 
+              type="text"
+              value={newSousLotNom}
+              onChange={(e) => setNewSousLotNom(e.target.value)}
+              className="mt-1 block w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+              placeholder="Ex: Courants Forts"
+            />
+          </div>
+          <div className="w-1/3">
+            <label className="text-xs text-gray-500">Abrev. sous-lot</label>
+            <input 
+              type="text"
+              value={newSousLotAbrev}
+              onChange={(e) => setNewSousLotAbrev(e.target.value)}
+              className="mt-1 block w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+              placeholder="Ex: CF"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAddSousLot}
+            className="p-2 text-white bg-green-600 rounded-md hover:bg-green-700"
+          >
+            <PlusCircle className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-3 pt-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          Annuler
+        </button>
+        <button
+          type="submit"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  );
+};
+
+
+// NOUVEAU: Page Lots (avec CUD)
+const LotsPage = ({ selectedProject, lots, setLots }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLot, setEditingLot] = useState(null); // null = nouveau, objet = modification
+
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
 
-  const projectLots = mockLots.filter(l => l.id_projet === selectedProject.id);
+  const projectLots = lots.filter(l => l.id_projet === selectedProject.id);
+
+  const openModalToEdit = (lot) => {
+    setEditingLot(lot);
+    setIsModalOpen(true);
+  };
+
+  const openModalToCreate = () => {
+    setEditingLot(null);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingLot(null);
+  };
+  
+  const handleSave = (lotData) => {
+    if (editingLot) {
+      // Modification
+      setLots(lots.map(l => l.id === editingLot.id ? { ...l, ...lotData } : l));
+    } else {
+      // Création
+      const newLot = {
+        ...lotData,
+        id: 'l' + Date.now(), // ID unique simple
+        id_projet: selectedProject.id
+      };
+      setLots([...lots, newLot]);
+    }
+    closeModal();
+  };
+
+  const handleDelete = (lotId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce lot ?")) {
+      setLots(lots.filter(l => l.id !== lotId));
+    }
+  };
+
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Lots & Sous-Lots pour : {selectedProject.nom}</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={openModalToCreate}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Nouveau Lot
         </button>
@@ -769,26 +1145,39 @@ const LotsPage = ({ selectedProject, mockLots }) => {
                   {lot.sousLots.map(sl => sl.abreviation).join(', ') || 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                  <button className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
-                  <button className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
+                  <button onClick={() => openModalToEdit(lot)} className="text-blue-600 dark:text-blue-400"><Edit2 className="w-5 h-5" /></button>
+                  <button onClick={() => handleDelete(lot.id)} className="text-red-600 dark:text-red-400"><Trash2 className="w-5 h-5" /></button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={closeModal} 
+        title={editingLot ? "Modifier le Lot" : "Créer un Nouveau Lot"}
+      >
+        <LotForm 
+          lot={editingLot} 
+          onSave={handleSave} 
+          onCancel={closeModal}
+        />
+      </Modal>
+      
     </div>
   );
 };
 
 // NOUVEAU: Page Révisions
-const RevisionsPage = ({ selectedProject, mockPlans }) => {
+const RevisionsPage = ({ selectedProject, plans }) => {
   if (!selectedProject) {
     return <div className="text-center text-gray-500 dark:text-gray-400">Veuillez d'abord sélectionner un projet.</div>;
   }
 
   // Aplatir l'historique de tous les plans du projet
-  const allRevisions = mockPlans
+  const allRevisions = plans
     .filter(p => p.id_projet === selectedProject.id)
     .flatMap(plan => 
       plan.historique.map(rev => ({
@@ -834,7 +1223,7 @@ const RevisionsPage = ({ selectedProject, mockPlans }) => {
 };
 
 // NOUVEAU: Page Utilisateurs
-const UsersPage = ({ currentUser, mockUsers }) => {
+const UsersPage = ({ currentUser, users, setUsers }) => { // MODIFIÉ: réception de users/setUsers
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   if (!isAdmin) {
@@ -851,7 +1240,10 @@ const UsersPage = ({ currentUser, mockUsers }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Gestion des Utilisateurs</h1>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={() => alert("La création d'utilisateur sera ajoutée prochainement.")}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-5 h-5 mr-2" />
           Nouvel Utilisateur
         </button>
@@ -866,18 +1258,20 @@ const UsersPage = ({ currentUser, mockUsers }) => {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {mockUsers.map((user) => (
+            {users.map((user) => (
               <tr key={user.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{user.username}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.role}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                   <button 
+                    onClick={() => alert("La modification d'utilisateur sera ajoutée prochainement.")}
                     className="text-blue-600 dark:text-blue-400 disabled:text-gray-400"
                     disabled={user.role === 'Gérant principal'} // On ne peut pas modifier le gérant principal
                   >
                     <Edit2 className="w-5 h-5" />
                   </button>
                   <button 
+                    onClick={() => alert("La suppression d'utilisateur sera ajoutée prochainement.")}
                     className="text-red-600 dark:text-red-400 disabled:text-gray-400"
                     disabled={user.role === 'Gérant principal'} // On ne peut pas supprimer le gérant principal
                   >
