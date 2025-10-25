@@ -32,7 +32,7 @@ const mockUsers = [
 ];
 
 const mockProjects = [
-  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "[https://maps.google.com/](https://maps.google.com/)...", id_responsable: 'u3', statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
+  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", id_responsable: 'u3', statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
   { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", id_responsable: 'u3', statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
   { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", id_responsable: 'u2', statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
 ];
@@ -150,6 +150,7 @@ export default function App() {
             page={currentPage} 
             currentUser={currentUser} 
             selectedProject={selectedProject}
+            isDarkMode={isDarkMode} // <-- CORRECTION : Ajout de la variable isDarkMode
           />
         </main>
       </div>
@@ -322,17 +323,17 @@ const Header = ({ isDarkMode, setIsDarkMode, currentUser, projects, selectedProj
 };
 
 // Routeur de contenu de page
-const PageContent = ({ page, currentUser, selectedProject }) => {
+const PageContent = ({ page, currentUser, selectedProject, isDarkMode }) => { // <-- CORRECTION: Réception de isDarkMode
   switch (page) {
     case 'dashboard':
-      return <DashboardPage />;
+      return <DashboardPage isDarkMode={isDarkMode} />; // <-- CORRECTION: Transmission de isDarkMode
     case 'projects':
       return <ProjectsPage />;
     case 'plans':
       return <PlansPage selectedProject={selectedProject} />;
     // ... autres cas pour 'blocks', 'lots', 'revisions', 'users', 'settings'
     default:
-      return <DashboardPage />;
+      return <DashboardPage isDarkMode={isDarkMode} />; // <-- CORRECTION: Transmission de isDarkMode
   }
 };
 
@@ -340,7 +341,7 @@ const PageContent = ({ page, currentUser, selectedProject }) => {
 // --- Composants de Page (Exemples) ---
 
 // Tableau de bord
-const DashboardPage = () => {
+const DashboardPage = ({ isDarkMode }) => { // <-- CORRECTION: Réception de isDarkMode
   const pieData = [
     { name: 'Approuvés CTC', value: 40, color: '#10B981' }, // green-500
     { name: 'En cours', value: 30, color: '#3B82F6' }, // blue-500
@@ -590,6 +591,7 @@ const PlansPage = ({ selectedProject }) => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                   <button title="Gérer les révisions" className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"><FileDiff className="w-5 h-5" /></button>
+
                   <button title="Copier la référence" className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"><Copy className="w-5 h-5" /></button>
                 </td>
               </tr>
