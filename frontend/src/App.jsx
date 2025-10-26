@@ -165,7 +165,8 @@ export default function App() {
 
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
-    return allProjects.find(p => p.id === selectedProjectId); 
+    // CORRECTION: S'assurer que allProjects est un array avant d'utiliser find
+    return Array.isArray(allProjects) ? allProjects.find(p => p.id === selectedProjectId) : undefined; 
   }, [allProjects, selectedProjectId]);
   
   // Logique de login
@@ -177,10 +178,12 @@ export default function App() {
       setIsAuthenticated(true);
 
       let filteredProjects = [];
+      // CORRECTION: S'assurer que allProjects est un array
+      const currentProjects = Array.isArray(allProjects) ? allProjects : [];
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
-        filteredProjects = allProjects; 
+        filteredProjects = currentProjects; 
       } else {
-        filteredProjects = allProjects.filter(p => 
+        filteredProjects = currentProjects.filter(p => 
           (p.assigned_users && p.assigned_users.includes(user.id)) || 
           (user.role === 'Visiteur' && p.acces_visiteur === true)
         ); 
@@ -336,8 +339,8 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
     }
     // Si l'URL contient un projectId mais qu'il n'est pas dans les projets accessibles
     // OU si selectedProjectId est null (ex: après déconnexion/reconnexion sans choisir)
-    if (!projectId || (projectId && !userProjects.some(p => p.id === projectId)) || !selectedProjectId) {
-      // Vérifier si selectedProjectId est null avant de le mettre à null (éviter boucle infinie potentielle)
+     // CORRECTION: S'assurer que userProjects est un array avant d'utiliser some
+    if (!projectId || (projectId && Array.isArray(userProjects) && !userProjects.some(p => p.id === projectId)) || !selectedProjectId) {
       if (selectedProjectId !== null) {
           setSelectedProjectId(null); 
       }
@@ -376,8 +379,10 @@ const ProjectSelectionPage = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   
+  // CORRECTION: S'assurer que allProjects est un array
+  const currentAllProjects = Array.isArray(allProjects) ? allProjects : [];
   // Utilise allProjects si admin, sinon userProjects
-  const projectsToDisplay = isAdmin ? allProjects : userProjects; 
+  const projectsToDisplay = isAdmin ? currentAllProjects : userProjects; 
   
   const getStatusColor = (statut) => { /* ... Identique ... */ 
     switch (statut) {
@@ -398,7 +403,7 @@ const ProjectSelectionPage = ({
 
     if (editingProject) {
       savedProject = { ...editingProject, ...projectData };
-      updatedAllProjects = allProjects.map(p => p.id === editingProject.id ? savedProject : p);
+      updatedAllProjects = currentAllProjects.map(p => p.id === editingProject.id ? savedProject : p);
       setAllProjects(updatedAllProjects); // Met à jour l'état global immédiatement
     } else {
       savedProject = {
@@ -406,7 +411,7 @@ const ProjectSelectionPage = ({
         id: 'p' + Date.now(), 
         date_creation: new Date().toISOString().split('T')[0], 
       };
-      updatedAllProjects = [...allProjects, savedProject]; // Ajoute le nouveau projet
+      updatedAllProjects = [...currentAllProjects, savedProject]; // Ajoute le nouveau projet
       setAllProjects(updatedAllProjects); // Met à jour l'état global immédiatement
     }
     closeModal();
@@ -435,12 +440,12 @@ const ProjectSelectionPage = ({
   const handleDelete = (projectId) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible et supprimera aussi ses blocs, lots et plans.")) {
       // Mettre à jour allProjects
-      const updatedAllProjects = allProjects.filter(p => p.id !== projectId);
+      const updatedAllProjects = currentAllProjects.filter(p => p.id !== projectId);
       setAllProjects(updatedAllProjects); 
       
       // Recalculer userProjects basé sur la liste mise à jour
       if (!isAdmin) {
-          setUserProjects(updatedUserProjects.filter(p => 
+          setUserProjects(updatedAllProjects.filter(p => 
               (p.assigned_users && p.assigned_users.includes(currentUser.id)) ||
               (currentUser.role === 'Visiteur' && p.acces_visiteur === true) 
            )); 
@@ -611,8 +616,9 @@ const MainLayout = ({
   const { selectedProject } = appData; 
 
   // Prépare les props à passer aux pages
+  // CORRECTION: Assurer la transmission correcte de allBlocks/allLots
   const pageProps = { 
-      ...appData, 
+      ...appData, // Inclut allUsers, allBlocks, allLots, allPlans et leurs setters
       isDarkMode, 
       currentUser, 
       selectedProject, 
@@ -646,7 +652,6 @@ const MainLayout = ({
              <Route path="plans" element={<PlansPage {...pageProps} />} /> 
              <Route path="blocks" element={<BlocksPage {...pageProps} />} />
              <Route path="lots" element={<LotsPage {...pageProps} />} />
-             {/* SUPPRIMÉ: Route Révisions */}
              
              <Route index element={<Navigate to="dashboard" replace />} />
              <Route path="*" element={<Navigate to="dashboard" replace />} /> 
@@ -912,7 +917,8 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLo
   const { projectId } = useParams();
 
   // Stats Spécifiques au projet sélectionné
-  const projectPlans = useMemo(() => allPlans.filter(p => p.id_projet === projectId), [allPlans, projectId]);
+  // CORRECTION: Assurer que allPlans est un array
+  const projectPlans = useMemo(() => Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : [], [allPlans, projectId]);
 
   // Calcul des comptes par statut pour les cartes
   const planStatusCounts = useMemo(() => {
@@ -1004,7 +1010,7 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLo
 
 
 // Formulaire Projet (avec multi-assignation)
-// CORRECTION: AssignerableUsers inclut TOUS les users SAUF gérant principal
+// ... (Identique)
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
   const [abreviation, setAbreviation] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
@@ -1242,7 +1248,7 @@ const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
 
 
 // Page Plans (avec CUD partiel et modal révisions)
-// CORRECTION: Assurer que allBlocks et allLots sont bien des arrays avant de filtrer
+// CORRECTION: Vérifications ajoutées
 const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots, currentUser, allUsers }) => { 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false); 
@@ -1259,9 +1265,9 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   
   // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
   // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
-  const projectPlans = useMemo(() => Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : [], [allPlans, projectId]);
-  const projectBlocks = useMemo(() => Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : [], [allBlocks, projectId]);
-  const projectLots = useMemo(() => Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : [], [allLots, projectId]);
+  const projectPlans = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
+  const projectBlocks = useMemo(() => (Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : []), [allBlocks, projectId]);
+  const projectLots = useMemo(() => (Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : []), [allLots, projectId]);
 
 
   const openPlanModalToCreate = () => { setEditingPlan(null); setIsPlanModalOpen(true); };
@@ -1273,11 +1279,9 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   const handleSavePlan = (planData) => { 
     if (editingPlan) {
       alert("Modification non implémentée");
-      // Mettre à jour allPlans ici (avec setAllPlans venant des props)
       setAllPlans(prevPlans => prevPlans.map(p => p.id === editingPlan.id ? { ...p, ...planData } : p));
     } else {
       const newPlan = { ...planData, id: 'pl' + Date.now() };
-      // Mettre à jour allPlans ici
       setAllPlans(prevPlans => [...prevPlans, newPlan]);
     }
     closePlanModal();
@@ -1285,7 +1289,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   
    const handleDeletePlan = (planId) => { 
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plan et tout son historique ?")) {
-      // Mettre à jour allPlans ici
       setAllPlans(prevPlans => prevPlans.filter(p => p.id !== planId));
     }
   };
@@ -1305,7 +1308,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
         {isAdmin && (
-          // CORRECTION: Assurer que le bouton ouvre bien le modal
           <button onClick={openPlanModalToCreate} 
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
             <Plus className="w-5 h-5 mr-2" /> Nouveau Plan
@@ -1336,7 +1338,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
                const lot = projectLots.find(l => l.id === plan.id_lot);
                const lastRevision = plan.historique && plan.historique.length > 0 ? plan.historique[plan.historique.length - 1] : null;
-               // CORRECTION: S'assurer que allUsers existe avant de chercher le créateur
                const creator = Array.isArray(allUsers) ? allUsers.find(u=> u.id === plan.id_createur) : null; 
 
                return (
@@ -1411,7 +1412,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
            selectedProject={selectedProject}
            allBlocks={projectBlocks} // Passe les blocs filtrés du projet
            allLots={projectLots}     // Passe les lots filtrés du projet
-           allPlans={plans} // Passe TOUS les plans pour la génération de référence
+           allPlans={allPlans} // Passe TOUS les plans pour la génération de référence
            onSave={handleSavePlan} 
            onCancel={closePlanModal}
            currentUser={currentUser}
@@ -1532,8 +1533,9 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
   if (!isAdmin) {
      return <Navigate to={`/project/${projectId}/dashboard`} replace />; // Redirige les non-admins vers le dashboard
   }
+ // CORRECTION: Assurer que allBlocks est un array
+ const projectBlocks = useMemo(() => Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : [], [allBlocks, projectId]);
 
-  const projectBlocks = allBlocks.filter(b => b.id_projet === projectId);
 
   const openModalToEdit = (block) => {
     setEditingBlock(block);
@@ -1773,7 +1775,9 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
      return <Navigate to={`/project/${projectId}/dashboard`} replace />;
   }
   
-  const projectLots = allLots.filter(l => l.id_projet === projectId);
+  // CORRECTION: Assurer que allLots est un array
+  const projectLots = useMemo(() => Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : [], [allLots, projectId]);
+
 
   const openModalToEdit = (lot) => {
     setEditingLot(lot);
@@ -2123,7 +2127,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
       }
 
       // --- Logique de génération de référence ---
-      // CORRECTION: Filtrer allPlans reçu en prop
+      // CORRECTION: Filtrer allPlans reçu en prop, s'assurer que c'est un array
       const plansInContext = (Array.isArray(allPlans) ? allPlans : []).filter(p => 
         p.id_projet === selectedProject.id && 
         p.id_bloc === idBloc && 
