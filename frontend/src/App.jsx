@@ -4,7 +4,7 @@ import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation, usePar
 
 // Import des graphiques
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector // Sector ajouté pour labels PieChart
 } from 'recharts';
 // Import des icônes
 import { 
@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
   Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye, 
-  ArrowRight, ShieldCheck, ExternalLink, Upload, History 
+  ArrowRight, ShieldCheck, ExternalLink, Upload, History, Info, CalendarDays // Nouvelles icônes
 } from 'lucide-react';
 
 // --- Données de Simulation (Valeurs par défaut pour localStorage) ---
@@ -42,10 +42,11 @@ const defaultMockUsers = [
   { id: 'u5', username: 'autre.ing', role: 'Ingénieur de suivi', password: 'user' }, 
 ];
 
+// MODIFIÉ: Ajout des champs date_demarrage, delai, unite_delai
 const defaultMockProjects = [
-  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", assigned_users: ['u3', 'u5'], statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
-  { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", assigned_users: ['u3'], statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
-  { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", assigned_users: ['u2'], statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
+  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", assigned_users: ['u3', 'u5'], statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true, date_demarrage: null, delai: null, unite_delai: 'jours' },
+  { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", assigned_users: ['u3'], statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false, date_demarrage: "2024-06-01", delai: 18, unite_delai: 'mois' },
+  { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", assigned_users: ['u2'], statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false, date_demarrage: "2023-02-01", delai: 12, unite_delai: 'mois' },
 ];
 
 const defaultMockLotsInit = [ 
@@ -62,31 +63,51 @@ const defaultMockBlocksInit = [
 ];
 
 const defaultMockPlansInit = [ 
-  { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "sim-plan-a.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
+  { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "https://docs.google.com/...", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
   { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b-r1.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
   { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
-  { id: 'pl4', id_projet: 'p1', id_bloc: 'b2', id_lot: 'l1', id_souslot: null, reference: "DUNE-HEB-ARCH-003-R00", titre: "Façade Ouest Hébergement", statut: "En cours d'approbation", numero: 3, revision: 0, date_creation: "2024-10-20", id_createur: 'u5', fichier_pdf: "sim-plan-d.pdf", historique: [{ version: 'R00', date: '2024-10-20', utilisateur: 'autre.ing', commentaire: 'Première version' }] },
+  { id: 'pl4', id_projet: 'p1', id_bloc: 'b2', id_lot: 'l1', id_souslot: null, reference: "DUNE-HEB-ARCH-003-R00", titre: "Façade Ouest Hébergement\nEtage courant", statut: "En cours d'approbation", numero: 3, revision: 0, date_creation: "2024-10-20", id_createur: 'u5', fichier_pdf: "sim-plan-d.pdf", historique: [{ version: 'R00', date: '2024-10-20', utilisateur: 'autre.ing', commentaire: 'Première version' }] },
 ];
 // --- Fin des Données de Simulation ---
 
 // --- Fonctions Utilitaires ---
-// MODIFIÉ: Génération d'abréviation améliorée
+// MODIFIÉ: Ajout de 'la', 'le', 'les', 'des', 'un', 'une', 'à' etc.
 const generateAbbreviation = (name) => {
   if (!name) return '';
-  name = name.trim(); // Supprimer espaces début/fin
+  name = name.trim(); 
+  const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à', 'en', 'sur', 'par', 'pour']);
   if (name.includes(' ')) {
-    // Plusieurs mots: prendre les initiales
-    const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à']);
     const words = name.split(' ')
-                      .map(word => word.toLowerCase()) 
+                      .map(word => word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")) // Enlever accents
                       .filter(word => word.length > 1 && !commonWords.has(word)); 
     let abrev = words.map(word => word[0]).join('').toUpperCase();
     return abrev.substring(0, 4);
   } else {
-    // Un seul mot: prendre les 4 premières lettres
     return name.substring(0, 4).toUpperCase();
   }
 };
+
+// Fonction pour calculer la date de fin
+const calculateEndDate = (startDate, duration, unit) => {
+  if (!startDate || !duration || isNaN(parseInt(duration))) return null;
+  
+  const start = new Date(startDate);
+  if (isNaN(start.getTime())) return null; // Vérifie si la date de début est valide
+
+  const durationNum = parseInt(duration);
+
+  if (unit === 'jours') {
+    start.setDate(start.getDate() + durationNum);
+  } else if (unit === 'mois') {
+    start.setMonth(start.getMonth() + durationNum);
+  } else {
+    return null; // Unité non reconnue
+  }
+
+  // Formater la date en YYYY-MM-DD
+  return start.toISOString().split('T')[0];
+};
+
 
 // ... (useDarkMode, loadInitialState, useLocalStorageState identiques) ...
 const useDarkMode = () => {
@@ -144,12 +165,14 @@ const useLocalStorageState = (key, defaultValue) => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem(key, JSON.stringify(state));
+        // CORRECTION: Assurer que l'état est un array si la valeur par défaut l'est
+        const valueToStore = (Array.isArray(defaultValue) && !Array.isArray(state)) ? defaultValue : state;
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
       } catch (error) {
           console.error(`Erreur lors de la sauvegarde de ${key} dans localStorage`, error);
       }
     }
-  }, [key, state]);
+  }, [key, state, defaultValue]); // Ajouter defaultValue aux dépendances
 
   return [state, setState];
 };
@@ -174,6 +197,7 @@ export default function App() {
 
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
+    // CORRECTION: Assurer que allProjects est un array
     return Array.isArray(allProjects) ? allProjects.find(p => p.id === selectedProjectId) : undefined; 
   }, [allProjects, selectedProjectId]);
   
@@ -186,7 +210,7 @@ export default function App() {
       setIsAuthenticated(true);
 
       let filteredProjects = [];
-      const currentProjects = Array.isArray(allProjects) ? allProjects : [];
+      const currentProjects = Array.isArray(allProjects) ? allProjects : []; // Assurer array
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
         filteredProjects = currentProjects; 
       } else {
@@ -344,22 +368,17 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
       navigate('/login', { replace: true });
       return;
     }
-    // Si l'URL contient un projectId mais qu'il n'est pas dans les projets accessibles
-    // OU si selectedProjectId est null (ex: après déconnexion/reconnexion sans choisir)
-     // CORRECTION: S'assurer que userProjects est un array avant d'utiliser some
+    // CORRECTION: S'assurer que userProjects est un array avant d'utiliser some
     if (!projectId || (projectId && Array.isArray(userProjects) && !userProjects.some(p => p.id === projectId)) || !selectedProjectId) {
-      // Vérifier si selectedProjectId est null avant de le mettre à null (éviter boucle infinie potentielle)
       if (selectedProjectId !== null) {
           setSelectedProjectId(null); 
       }
       navigate('/select-project', { replace: true });
-    // Si l'URL contient un projectId valide mais qu'il est différent de l'état actuel
     } else if (projectId && projectId !== selectedProjectId) {
       setSelectedProjectId(projectId); // Synchronise l'état
     } 
   }, [isAuthenticated, projectId, userProjects, navigate, selectedProjectId, setSelectedProjectId]);
 
-  // Attend que selectedProjectId soit synchronisé avec projectId (ET qu'il soit valide)
   if (!selectedProjectId || selectedProjectId !== projectId) {
     return <div className="flex items-center justify-center h-screen">Chargement du projet...</div>;
   }
@@ -1275,6 +1294,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   }
   
   // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
+  // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
   const projectPlans = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
   const projectBlocks = useMemo(() => (Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : []), [allBlocks, projectId]);
   const projectLots = useMemo(() => (Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : []), [allLots, projectId]);
@@ -1461,7 +1481,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
            selectedProject={selectedProject}
            allBlocks={projectBlocks} 
            allLots={projectLots}     
-           allPlans={allPlans} // Passer TOUS les plans
+           allPlans={allPlans} // CORRECTION: Passer allPlans ici
            onSave={handleSavePlan} 
            onCancel={closePlanModal}
            currentUser={currentUser}
@@ -1951,8 +1971,6 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   );
 };
 
-// SUPPRIMÉ: Page Révisions
-
 // Formulaire Utilisateur
 // ... (Identique)
 const UserForm = ({ user, onSave, onCancel }) => {
@@ -2176,7 +2194,6 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
       e.preventDefault();
       
       if (plan) { // Modification
-          // Pour la modification, on ne change que titre, statut, fichier
            const planData = {
                ...plan,
                titre,
@@ -2212,7 +2229,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
               id_projet: selectedProject.id,
               titre, id_bloc: idBloc, id_lot: idLot, id_souslot: idSousLot || null, 
               statut,
-              fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : 'aucun', 
+              fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : (fichier || 'aucun'), 
               reference, numero: nextNumero, revision: 0, 
               date_creation: new Date().toISOString().split('T')[0], 
               id_createur: currentUser.id, 
@@ -2222,22 +2239,26 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
       }
     };
 
-    // Simule la sélection de fichier
+    // Simule la sélection de fichier OU la saisie d'un lien
     const handleFileChange = (e) => {
-        if (e.target.files.length > 0) {
+        if (e.target.files && e.target.files.length > 0) {
             setFichier(e.target.files[0]);
         }
     };
+    const handleLinkChange = (e) => {
+        setFichier(e.target.value); // Stocke l'URL comme string
+    };
+
 
     return (
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
         <div>
+          {/* MODIFIÉ: Utilisation de textarea pour le titre */}
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
-          <input type="text" value={titre} onChange={(e) => setTitre(e.target.value)} required
+          <textarea value={titre} onChange={(e) => setTitre(e.target.value)} required rows="3"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
         </div>
         
-        {/* Afficher Bloc/Lot/SousLot seulement en création */}
         {!plan && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -2266,7 +2287,6 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
             </div>
           </div>
         )}
-        {/* Afficher les infos en lecture seule si modification */}
         {plan && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-500 dark:text-gray-400">
              <p><strong>Référence:</strong> {plan.reference}</p>
@@ -2286,21 +2306,24 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
           </select>
         </div>
 
+        {/* MODIFIÉ: Champ Fichier OU Lien */}
         <div>
            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fichier PDF {plan ? `(Actuel: ${plan.fichier_pdf || 'aucun'})` : '(R00)'}</label>
            <div className="mt-1 flex items-center space-x-2">
               <label htmlFor="file-upload-plan" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                 <Upload className="w-4 h-4 mr-2"/>
-                 {plan ? "Remplacer fichier" : "Choisir fichier"}
+                 <Upload className="w-4 h-4 mr-2"/> {plan ? "Remplacer" : "Choisir"}
               </label>
               <input id="file-upload-plan" name="file-upload-plan" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf"/>
-              {fichier instanceof File && <span className="text-sm text-gray-500 truncate">{fichier.name}</span>}
-              {typeof fichier === 'string' && !plan && <span className="text-sm text-gray-500 truncate">{fichier}</span>} 
+              <span className="text-sm text-gray-500">OU</span>
+              <input type="url" placeholder="Coller lien Google Drive..." value={typeof fichier === 'string' && fichier.startsWith('http') ? fichier : ''} onChange={handleLinkChange}
+                className="flex-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm" />
            </div>
-           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Simule l'upload. Le nom sera enregistré.</p>
+           {fichier instanceof File && <p className="text-xs text-green-600 dark:text-green-400 mt-1">Fichier sélectionné: {fichier.name}</p>}
+           {typeof fichier === 'string' && fichier.startsWith('http') && <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Lien Google Drive: {fichier}</p>}
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Choisissez un fichier OU collez un lien.</p>
         </div>
         
-         {!plan && ( // Commentaire seulement à la création
+         {!plan && ( 
              <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire Initial (Optionnel)</label>
               <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="2"
@@ -2325,30 +2348,33 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     );
 };
 
-// NOUVEAU: Formulaire Ajout Révision
+// Formulaire Ajout Révision
 const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
-    const [fichier, setFichier] = useState(null); // Obligatoire pour une nouvelle révision
+    const [fichier, setFichier] = useState(null); 
     const [commentaire, setCommentaire] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!fichier) {
-            alert("Veuillez sélectionner un fichier PDF pour la nouvelle révision.");
+            alert("Veuillez sélectionner un fichier PDF ou coller un lien pour la nouvelle révision.");
             return;
         }
         onSave({
-            fichier_pdf: `sim-${fichier.name}`, // Simuler le nom du fichier uploadé
+            fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : fichier, // Stocke nom simulé ou URL
             commentaire: commentaire || 'Nouvelle révision',
         });
     };
 
     const handleFileChange = (e) => {
-        if (e.target.files.length > 0) {
+        if (e.target.files && e.target.files.length > 0) {
             setFichier(e.target.files[0]);
         }
     };
+     const handleLinkChange = (e) => {
+        setFichier(e.target.value); 
+    };
 
-    if (!plan) return null; // Sécurité
+    if (!plan) return null; 
 
     const nextRevisionNum = (plan.revision || 0) + 1;
     const nextRevisionStr = String(nextRevisionNum).padStart(2, '0');
@@ -2356,18 +2382,21 @@ const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-                Vous ajoutez la révision <strong className="text-indigo-600 dark:text-indigo-400">R{nextRevisionStr}</strong> pour le plan <strong className="text-gray-900 dark:text-gray-100">{plan.reference.split('-R')[0]}</strong>.
+                Ajout révision <strong className="text-indigo-600 dark:text-indigo-400">R{nextRevisionStr}</strong> pour <strong className="dark:text-gray-100">{plan.reference.split('-R')[0]}</strong>.
             </p>
             <div>
                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nouveau Fichier PDF (R{nextRevisionStr})</label>
                <div className="mt-1 flex items-center space-x-2">
-                  <label htmlFor="file-upload-revision" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                     <Upload className="w-4 h-4 mr-2"/>
-                     Choisir un fichier PDF
-                  </label>
-                  <input id="file-upload-revision" name="file-upload-revision" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf" required />
-                  {fichier && <span className="text-sm text-gray-500 truncate">{fichier.name}</span>}
+                 <label htmlFor="file-upload-revision" className="cursor-pointer inline-flex items-center px-3 py-2 border dark:border-gray-600 rounded-md shadow-sm text-sm font-medium dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <Upload className="w-4 h-4 mr-2"/> Choisir
+                 </label>
+                 <input id="file-upload-revision" name="file-upload-revision" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf" />
+                 <span className="text-sm text-gray-500">OU</span>
+                 <input type="url" placeholder="Coller lien Google Drive..." value={typeof fichier === 'string' && fichier.startsWith('http') ? fichier : ''} onChange={handleLinkChange}
+                   className="flex-1 block w-full px-3 py-2 border dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm" />
                </div>
+               {fichier instanceof File && <p className="text-xs text-green-600 dark:text-green-400 mt-1">Fichier: {fichier.name}</p>}
+               {typeof fichier === 'string' && fichier.startsWith('http') && <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Lien: {fichier}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire (Optionnel)</label>
@@ -2378,14 +2407,10 @@ const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
             </div>
             <div className="flex justify-end space-x-3 pt-4">
               <button type="button" onClick={onCancel}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-                Annuler
-              </button>
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"> Annuler </button>
               <button type="submit"
                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">
-                <FileDiff className="w-4 h-4 mr-2" />
-                Ajouter Révision R{nextRevisionStr}
-              </button>
+                <FileDiff className="w-4 h-4 mr-2" /> Ajouter Révision R{nextRevisionStr} </button>
             </div>
         </form>
     );
