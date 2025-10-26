@@ -63,23 +63,32 @@ const defaultMockBlocksInit = [
 
 const defaultMockPlansInit = [ 
   { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "sim-plan-a.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
-  { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
+  { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b-r1.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
   { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
   { id: 'pl4', id_projet: 'p1', id_bloc: 'b2', id_lot: 'l1', id_souslot: null, reference: "DUNE-HEB-ARCH-003-R00", titre: "Façade Ouest Hébergement", statut: "En cours d'approbation", numero: 3, revision: 0, date_creation: "2024-10-20", id_createur: 'u5', fichier_pdf: "sim-plan-d.pdf", historique: [{ version: 'R00', date: '2024-10-20', utilisateur: 'autre.ing', commentaire: 'Première version' }] },
 ];
 // --- Fin des Données de Simulation ---
 
 // --- Fonctions Utilitaires ---
+// MODIFIÉ: Génération d'abréviation améliorée
 const generateAbbreviation = (name) => {
   if (!name) return '';
-  const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à']);
-  const words = name.split(' ')
-                    .map(word => word.toLowerCase()) 
-                    .filter(word => word.length > 1 && !commonWords.has(word)); 
-  let abrev = words.map(word => word[0]).join('').toUpperCase();
-  return abrev.substring(0, 4);
+  name = name.trim(); // Supprimer espaces début/fin
+  if (name.includes(' ')) {
+    // Plusieurs mots: prendre les initiales
+    const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à']);
+    const words = name.split(' ')
+                      .map(word => word.toLowerCase()) 
+                      .filter(word => word.length > 1 && !commonWords.has(word)); 
+    let abrev = words.map(word => word[0]).join('').toUpperCase();
+    return abrev.substring(0, 4);
+  } else {
+    // Un seul mot: prendre les 4 premières lettres
+    return name.substring(0, 4).toUpperCase();
+  }
 };
 
+// ... (useDarkMode, loadInitialState, useLocalStorageState identiques) ...
 const useDarkMode = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -165,7 +174,6 @@ export default function App() {
 
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
-    // CORRECTION: S'assurer que allProjects est un array avant d'utiliser find
     return Array.isArray(allProjects) ? allProjects.find(p => p.id === selectedProjectId) : undefined; 
   }, [allProjects, selectedProjectId]);
   
@@ -178,7 +186,6 @@ export default function App() {
       setIsAuthenticated(true);
 
       let filteredProjects = [];
-      // CORRECTION: S'assurer que allProjects est un array
       const currentProjects = Array.isArray(allProjects) ? allProjects : [];
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
         filteredProjects = currentProjects; 
@@ -341,6 +348,7 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
     // OU si selectedProjectId est null (ex: après déconnexion/reconnexion sans choisir)
      // CORRECTION: S'assurer que userProjects est un array avant d'utiliser some
     if (!projectId || (projectId && Array.isArray(userProjects) && !userProjects.some(p => p.id === projectId)) || !selectedProjectId) {
+      // Vérifier si selectedProjectId est null avant de le mettre à null (éviter boucle infinie potentielle)
       if (selectedProjectId !== null) {
           setSelectedProjectId(null); 
       }
@@ -445,7 +453,7 @@ const ProjectSelectionPage = ({
       
       // Recalculer userProjects basé sur la liste mise à jour
       if (!isAdmin) {
-          setUserProjects(updatedAllProjects.filter(p => 
+          setUserProjects(updatedUserProjects.filter(p => 
               (p.assigned_users && p.assigned_users.includes(currentUser.id)) ||
               (currentUser.role === 'Visiteur' && p.acces_visiteur === true) 
            )); 
@@ -616,9 +624,8 @@ const MainLayout = ({
   const { selectedProject } = appData; 
 
   // Prépare les props à passer aux pages
-  // CORRECTION: Assurer la transmission correcte de allBlocks/allLots
   const pageProps = { 
-      ...appData, // Inclut allUsers, allBlocks, allLots, allPlans et leurs setters
+      ...appData, 
       isDarkMode, 
       currentUser, 
       selectedProject, 
@@ -1207,7 +1214,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   );
 };
 
-// NOUVEAU: Modal Historique Révisions
+// Modal Historique Révisions
 // ... (Identique)
 const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
   if (!isOpen || !plan) return null;
@@ -1248,12 +1255,16 @@ const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
 
 
 // Page Plans (avec CUD partiel et modal révisions)
-// CORRECTION: Vérifications ajoutées
+// CORRECTION: Assurer que allBlocks et allLots sont bien des arrays avant de filtrer
+// CORRECTION: Transmettre allPlans au formulaire PlanForm
 const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots, currentUser, allUsers }) => { 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false); 
   const [selectedPlanForHistory, setSelectedPlanForHistory] = useState(null); 
   const [editingPlan, setEditingPlan] = useState(null); 
+  const [isAddRevisionModalOpen, setIsAddRevisionModalOpen] = useState(false); // NOUVEAU: État pour modal ajout révision
+  const [planToRevise, setPlanToRevise] = useState(null); // NOUVEAU: Plan pour ajouter une révision
+
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const { projectId } = useParams(); 
 
@@ -1264,23 +1275,28 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   }
   
   // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
-  // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
   const projectPlans = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
   const projectBlocks = useMemo(() => (Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : []), [allBlocks, projectId]);
   const projectLots = useMemo(() => (Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : []), [allLots, projectId]);
 
 
   const openPlanModalToCreate = () => { setEditingPlan(null); setIsPlanModalOpen(true); };
+  const openPlanModalToEdit = (plan) => { setEditingPlan(plan); setIsPlanModalOpen(true); }; // NOUVEAU
   const closePlanModal = () => { setIsPlanModalOpen(false); setEditingPlan(null); };
   
-  const openRevisionModal = (plan) => { setSelectedPlanForHistory(plan); setIsRevisionModalOpen(true); };
-  const closeRevisionModal = () => { setIsRevisionModalOpen(false); setSelectedPlanForHistory(null); };
+  const openRevisionHistoryModal = (plan) => { setSelectedPlanForHistory(plan); setIsRevisionModalOpen(true); };
+  const closeRevisionHistoryModal = () => { setIsRevisionModalOpen(false); setSelectedPlanForHistory(null); };
+
+  // NOUVEAU: Fonctions pour modal ajout révision
+  const openAddRevisionModal = (plan) => { setPlanToRevise(plan); setIsAddRevisionModalOpen(true); };
+  const closeAddRevisionModal = () => { setIsAddRevisionModalOpen(false); setPlanToRevise(null); };
   
   const handleSavePlan = (planData) => { 
     if (editingPlan) {
-      alert("Modification non implémentée");
-      setAllPlans(prevPlans => prevPlans.map(p => p.id === editingPlan.id ? { ...p, ...planData } : p));
+       // NOUVEAU: Logique de modification simple (titre, statut, fichier)
+       setAllPlans(prevPlans => prevPlans.map(p => p.id === editingPlan.id ? { ...p, titre: planData.titre, statut: planData.statut, fichier_pdf: planData.fichier_pdf } : p));
     } else {
+      // Création (inchangée)
       const newPlan = { ...planData, id: 'pl' + Date.now() };
       setAllPlans(prevPlans => [...prevPlans, newPlan]);
     }
@@ -1291,7 +1307,38 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plan et tout son historique ?")) {
       setAllPlans(prevPlans => prevPlans.filter(p => p.id !== planId));
     }
-  };
+   };
+   
+   // NOUVEAU: Gérer la sauvegarde d'une révision
+   const handleSaveRevision = (revisionData) => {
+      setAllPlans(prevPlans => prevPlans.map(p => {
+          if (p.id === planToRevise.id) {
+              const nextRevisionNum = p.revision + 1;
+              const nextRevisionStr = String(nextRevisionNum).padStart(2, '0');
+              // Construire la nouvelle référence en remplaçant la partie révision
+              const baseReference = p.reference.substring(0, p.reference.lastIndexOf('-R') + 2); 
+              const newReference = `${baseReference}${nextRevisionStr}`;
+              
+              const newHistoryEntry = {
+                  version: `R${nextRevisionStr}`,
+                  date: new Date().toISOString().split('T')[0],
+                  utilisateur: currentUser.username,
+                  commentaire: revisionData.commentaire || 'Nouvelle révision'
+              };
+              
+              return {
+                  ...p,
+                  reference: newReference,
+                  revision: nextRevisionNum,
+                  fichier_pdf: revisionData.fichier_pdf, // Nom du nouveau fichier
+                  historique: [...p.historique, newHistoryEntry],
+                  statut: "En cours d'approbation" // Réinitialiser statut par défaut pour nouvelle révision? Ou garder l'ancien? -> Mettre en cours
+              };
+          }
+          return p;
+      }));
+      closeAddRevisionModal();
+   };
 
   const getStatusIcon = (statut) => { /* ... Identique ... */ 
     switch (statut) {
@@ -1334,7 +1381,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {projectPlans.map((plan) => {
-               // Utilisation des listes déjà filtrées pour le projet
                const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
                const lot = projectLots.find(l => l.id === plan.id_lot);
                const lastRevision = plan.historique && plan.historique.length > 0 ? plan.historique[plan.historique.length - 1] : null;
@@ -1363,21 +1409,24 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                         {lastRevision ? `par ${lastRevision.utilisateur}` : `par ${creator?.username || '?'}`}
                        </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                      <button onClick={() => openRevisionModal(plan)} title="Voir Historique"
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> {/* Espace réduit */}
+                      <button onClick={() => openRevisionHistoryModal(plan)} title="Voir Historique"
                          className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
                          <History className="w-4 h-4" /> 
                       </button>
                       {isAdmin && (
                         <>
-                        <button onClick={() => alert("Modification bientôt disponible.")} title="Modifier"
+                        {/* NOUVEAU: Bouton Modifier plan */}
+                        <button onClick={() => openPlanModalToEdit(plan)} title="Modifier" 
                            className="p-1.5 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-gray-700">
                            <Edit2 className="w-4 h-4" />
                          </button>
-                        <button onClick={() => alert("Gestion révisions bientôt disponible.")} title="Ajouter Révision"
+                         {/* NOUVEAU: Bouton Ajouter révision */}
+                        <button onClick={() => openAddRevisionModal(plan)} title="Ajouter Révision"
                            className="p-1.5 text-indigo-600 dark:text-indigo-400 rounded hover:bg-indigo-100 dark:hover:bg-gray-700">
                            <FileDiff className="w-4 h-4" />
                          </button>
+                         {/* NOUVEAU: Bouton Supprimer plan */}
                          <button onClick={() => handleDeletePlan(plan.id)} title="Supprimer"
                            className="p-1.5 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-gray-700">
                            <Trash2 className="w-4 h-4" />
@@ -1410,9 +1459,9 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
          <PlanForm 
            plan={editingPlan} 
            selectedProject={selectedProject}
-           allBlocks={projectBlocks} // Passe les blocs filtrés du projet
-           allLots={projectLots}     // Passe les lots filtrés du projet
-           allPlans={allPlans} // Passe TOUS les plans pour la génération de référence
+           allBlocks={projectBlocks} 
+           allLots={projectLots}     
+           allPlans={allPlans} // Passer TOUS les plans
            onSave={handleSavePlan} 
            onCancel={closePlanModal}
            currentUser={currentUser}
@@ -1422,10 +1471,20 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
        {/* Modal Historique Révisions */}
        <RevisionHistoryModal 
          isOpen={isRevisionModalOpen} 
-         onClose={closeRevisionModal} 
+         onClose={closeRevisionHistoryModal} 
          plan={selectedPlanForHistory}
          allUsers={allUsers} 
        />
+       
+       {/* NOUVEAU: Modal Ajout Révision */}
+       <Modal isOpen={isAddRevisionModalOpen} onClose={closeAddRevisionModal} title={`Ajouter Révision à ${planToRevise?.reference.split('-R')[0]}-R${String((planToRevise?.revision || 0) + 1).padStart(2,'0')}`}>
+          <RevisionForm 
+             plan={planToRevise}
+             onSave={handleSaveRevision}
+             onCancel={closeAddRevisionModal}
+             currentUser={currentUser}
+          />
+       </Modal>
     </div>
   );
 };
@@ -2083,37 +2142,32 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
 };
 
 // --- Formulaire Plan ---
+// CORRECTION: Transmettre allPlans pour la génération de référence
 const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave, onCancel, currentUser }) => {
     const [titre, setTitre] = useState(plan ? plan.titre : '');
     const [idBloc, setIdBloc] = useState(plan ? plan.id_bloc : '');
     const [idLot, setIdLot] = useState(plan ? plan.id_lot : '');
     const [idSousLot, setIdSousLot] = useState(plan ? plan.id_souslot : '');
     const [statut, setStatut] = useState(plan ? plan.statut : "En cours d'approbation");
-    const [fichier, setFichier] = useState(plan ? plan.fichier_pdf : null); // Simule le fichier
-    const [commentaire, setCommentaire] = useState(''); // Pour la première révision
+    const [fichier, setFichier] = useState(plan ? plan.fichier_pdf : null); 
+    const [commentaire, setCommentaire] = useState(''); 
 
-    // Utilise les listes filtrées passées en props
-    const projectBlocks = allBlocks || []; // S'assurer que c'est un array
-    const projectLots = allLots || []; // S'assurer que c'est un array  
+    const projectBlocks = allBlocks || []; 
+    const projectLots = allLots || [];   
     const selectedLot = useMemo(() => projectLots.find(l => l.id === idLot), [projectLots, idLot]);
     const sousLotsDisponibles = useMemo(() => selectedLot?.sousLots || [], [selectedLot]);
 
-    useEffect(() => { // Préremplissage édition
+    useEffect(() => { 
         if (plan) {
             setTitre(plan.titre);
             setIdBloc(plan.id_bloc);
             setIdLot(plan.id_lot);
             setIdSousLot(plan.id_souslot);
             setStatut(plan.statut);
-            setFichier(plan.fichier_pdf); // Garde le nom du fichier existant
-        } else { // Réinitialisation création
-             setTitre('');
-             setIdBloc('');
-             setIdLot('');
-             setIdSousLot('');
-             setStatut("En cours d'approbation");
-             setFichier(null);
-             setCommentaire('');
+            setFichier(plan.fichier_pdf); 
+        } else { 
+             setTitre(''); setIdBloc(''); setIdLot(''); setIdSousLot('');
+             setStatut("En cours d'approbation"); setFichier(null); setCommentaire('');
         }
     }, [plan]);
 
@@ -2121,49 +2175,51 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const handleSubmit = (e) => {
       e.preventDefault();
       
-      if (!idBloc || !idLot) {
-          alert("Veuillez sélectionner un Bloc et un Lot.");
-          return;
+      if (plan) { // Modification
+          // Pour la modification, on ne change que titre, statut, fichier
+           const planData = {
+               ...plan,
+               titre,
+               statut,
+               fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : (fichier || plan.fichier_pdf || 'aucun'),
+           };
+          onSave(planData);
+      } else { // Création
+          if (!idBloc || !idLot) {
+            alert("Veuillez sélectionner un Bloc et un Lot.");
+            return;
+          }
+          // --- Génération référence ---
+          const plansInContext = (Array.isArray(allPlans) ? allPlans : []).filter(p => 
+            p.id_projet === selectedProject.id && 
+            p.id_bloc === idBloc && 
+            p.id_lot === idLot
+          );
+          const nextNumero = plansInContext.length > 0 ? Math.max(0, ...plansInContext.map(p => p.numero || 0)) + 1 : 1;
+          const numeroStr = String(nextNumero).padStart(3, '0');
+          const projAbrev = selectedProject.abreviation || 'PROJ';
+          const blocAbrev = projectBlocks.find(b => b.id === idBloc)?.abreviation || 'BLOC'; 
+          const lotAbrev = projectLots.find(l => l.id === idLot)?.abreviation || 'LOT';
+          const reference = `${projAbrev}-${blocAbrev}-${lotAbrev}-${numeroStr}-R00`;
+          const initialHistorique = [{
+              version: 'R00',
+              date: new Date().toISOString().split('T')[0],
+              utilisateur: currentUser.username,
+              commentaire: commentaire || 'Création initiale'
+          }];
+
+          const planData = {
+              id_projet: selectedProject.id,
+              titre, id_bloc: idBloc, id_lot: idLot, id_souslot: idSousLot || null, 
+              statut,
+              fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : 'aucun', 
+              reference, numero: nextNumero, revision: 0, 
+              date_creation: new Date().toISOString().split('T')[0], 
+              id_createur: currentUser.id, 
+              historique: initialHistorique, 
+          };
+          onSave(planData);
       }
-
-      // --- Logique de génération de référence ---
-      // CORRECTION: Filtrer allPlans reçu en prop, s'assurer que c'est un array
-      const plansInContext = (Array.isArray(allPlans) ? allPlans : []).filter(p => 
-        p.id_projet === selectedProject.id && 
-        p.id_bloc === idBloc && 
-        p.id_lot === idLot
-      );
-      const nextNumero = plansInContext.length > 0 ? Math.max(0, ...plansInContext.map(p => p.numero || 0)) + 1 : 1;
-      const numeroStr = String(nextNumero).padStart(3, '0');
-      const projAbrev = selectedProject.abreviation || 'PROJ';
-      const blocAbrev = projectBlocks.find(b => b.id === idBloc)?.abreviation || 'BLOC'; 
-      const lotAbrev = projectLots.find(l => l.id === idLot)?.abreviation || 'LOT';
-      const reference = `${projAbrev}-${blocAbrev}-${lotAbrev}-${numeroStr}-R00`;
-      const initialHistorique = [{
-          version: 'R00',
-          date: new Date().toISOString().split('T')[0],
-          utilisateur: currentUser.username,
-          commentaire: commentaire || 'Création initiale'
-      }];
-
-      const planData = {
-          ...plan, 
-          id_projet: selectedProject.id,
-          titre,
-          id_bloc: idBloc,
-          id_lot: idLot,
-          id_souslot: idSousLot || null, 
-          statut,
-          fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : (fichier || 'aucun'), 
-          reference,
-          numero: nextNumero,
-          revision: 0, 
-          date_creation: plan ? plan.date_creation : new Date().toISOString().split('T')[0], 
-          id_createur: plan ? plan.id_createur : currentUser.id, 
-          historique: plan ? plan.historique : initialHistorique, 
-      };
-
-      onSave(planData);
     };
 
     // Simule la sélection de fichier
@@ -2175,42 +2231,52 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
 
     return (
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-        {/* ... Champs Titre, Blocs, Lots, Sous-Lots, Statut, Fichier, Commentaire ... Identiques */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
           <input type="text" value={titre} onChange={(e) => setTitre(e.target.value)} required
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bloc</label>
-             <select value={idBloc} onChange={(e) => setIdBloc(e.target.value)} required
-               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-               <option value="">-- Sélectionner Bloc --</option>
-               {projectBlocks.map(b => <option key={b.id} value={b.id}>{b.nom} ({b.abreviation})</option>)}
-             </select>
-           </div>
-           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Lot</label>
-             <select value={idLot} onChange={(e) => {setIdLot(e.target.value); setIdSousLot('');}} required
-               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-               <option value="">-- Sélectionner Lot --</option>
-               {projectLots.map(l => <option key={l.id} value={l.id}>{l.nom} ({l.abreviation})</option>)}
-             </select>
-           </div>
-           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sous-Lot (Optionnel)</label>
-             <select value={idSousLot} onChange={(e) => setIdSousLot(e.target.value)} disabled={sousLotsDisponibles.length === 0}
-               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
-               <option value="">-- Aucun --</option>
-               {sousLotsDisponibles.map(sl => <option key={sl.id} value={sl.id}>{sl.nom} ({sl.abreviation})</option>)}
-             </select>
-           </div>
-        </div>
+        {/* Afficher Bloc/Lot/SousLot seulement en création */}
+        {!plan && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bloc</label>
+              <select value={idBloc} onChange={(e) => setIdBloc(e.target.value)} required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+                <option value="">-- Sélectionner Bloc --</option>
+                {projectBlocks.map(b => <option key={b.id} value={b.id}>{b.nom} ({b.abreviation})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Lot</label>
+              <select value={idLot} onChange={(e) => {setIdLot(e.target.value); setIdSousLot('');}} required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+                <option value="">-- Sélectionner Lot --</option>
+                {projectLots.map(l => <option key={l.id} value={l.id}>{l.nom} ({l.abreviation})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sous-Lot (Optionnel)</label>
+              <select value={idSousLot} onChange={(e) => setIdSousLot(e.target.value)} disabled={sousLotsDisponibles.length === 0}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+                <option value="">-- Aucun --</option>
+                {sousLotsDisponibles.map(sl => <option key={sl.id} value={sl.id}>{sl.nom} ({sl.abreviation})</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+        {/* Afficher les infos en lecture seule si modification */}
+        {plan && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-500 dark:text-gray-400">
+             <p><strong>Référence:</strong> {plan.reference}</p>
+             <p><strong>Bloc:</strong> {projectBlocks.find(b=>b.id === plan.id_bloc)?.abreviation || '?'}</p>
+             <p><strong>Lot:</strong> {projectLots.find(l=>l.id === plan.id_lot)?.abreviation || '?'}</p>
+          </div>
+        )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut Initial</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut</label>
           <select value={statut} onChange={(e) => setStatut(e.target.value)} required
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
             <option value="En cours d'approbation">En cours d'approbation</option>
@@ -2221,26 +2287,28 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
         </div>
 
         <div>
-           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fichier PDF (R00)</label>
+           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fichier PDF {plan ? `(Actuel: ${plan.fichier_pdf || 'aucun'})` : '(R00)'}</label>
            <div className="mt-1 flex items-center space-x-2">
-              <label htmlFor="file-upload" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+              <label htmlFor="file-upload-plan" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                  <Upload className="w-4 h-4 mr-2"/>
-                 Choisir un fichier
+                 {plan ? "Remplacer fichier" : "Choisir fichier"}
               </label>
-              <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf"/>
+              <input id="file-upload-plan" name="file-upload-plan" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf"/>
               {fichier instanceof File && <span className="text-sm text-gray-500 truncate">{fichier.name}</span>}
-              {typeof fichier === 'string' && <span className="text-sm text-gray-500 truncate">{fichier}</span>} 
+              {typeof fichier === 'string' && !plan && <span className="text-sm text-gray-500 truncate">{fichier}</span>} 
            </div>
            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Simule l'upload. Le nom sera enregistré.</p>
         </div>
         
-         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire Initial (Optionnel)</label>
-          <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="2"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700"
-            placeholder="Ex: Version initiale pour approbation CTC"
-           />
-        </div>
+         {!plan && ( // Commentaire seulement à la création
+             <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire Initial (Optionnel)</label>
+              <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="2"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700"
+                placeholder="Ex: Version initiale pour approbation CTC"
+               />
+            </div>
+         )}
 
         <div className="flex justify-end space-x-3 pt-4">
           <button type="button" onClick={onCancel}
@@ -2254,6 +2322,72 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
           </button>
         </div>
       </form>
+    );
+};
+
+// NOUVEAU: Formulaire Ajout Révision
+const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
+    const [fichier, setFichier] = useState(null); // Obligatoire pour une nouvelle révision
+    const [commentaire, setCommentaire] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!fichier) {
+            alert("Veuillez sélectionner un fichier PDF pour la nouvelle révision.");
+            return;
+        }
+        onSave({
+            fichier_pdf: `sim-${fichier.name}`, // Simuler le nom du fichier uploadé
+            commentaire: commentaire || 'Nouvelle révision',
+        });
+    };
+
+    const handleFileChange = (e) => {
+        if (e.target.files.length > 0) {
+            setFichier(e.target.files[0]);
+        }
+    };
+
+    if (!plan) return null; // Sécurité
+
+    const nextRevisionNum = (plan.revision || 0) + 1;
+    const nextRevisionStr = String(nextRevisionNum).padStart(2, '0');
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+                Vous ajoutez la révision <strong className="text-indigo-600 dark:text-indigo-400">R{nextRevisionStr}</strong> pour le plan <strong className="text-gray-900 dark:text-gray-100">{plan.reference.split('-R')[0]}</strong>.
+            </p>
+            <div>
+               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nouveau Fichier PDF (R{nextRevisionStr})</label>
+               <div className="mt-1 flex items-center space-x-2">
+                  <label htmlFor="file-upload-revision" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                     <Upload className="w-4 h-4 mr-2"/>
+                     Choisir un fichier PDF
+                  </label>
+                  <input id="file-upload-revision" name="file-upload-revision" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf" required />
+                  {fichier && <span className="text-sm text-gray-500 truncate">{fichier.name}</span>}
+               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire (Optionnel)</label>
+              <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="3"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700"
+                placeholder={`Commentaire pour la révision R${nextRevisionStr}...`}
+               />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button type="button" onClick={onCancel}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+                Annuler
+              </button>
+              <button type="submit"
+                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">
+                <FileDiff className="w-4 h-4 mr-2" />
+                Ajouter Révision R{nextRevisionStr}
+              </button>
+            </div>
+        </form>
     );
 };
 
