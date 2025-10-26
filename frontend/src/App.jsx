@@ -75,14 +75,16 @@ const defaultMockPlansInit = [
 const generateAbbreviation = (name) => {
   if (!name) return '';
   name = name.trim(); 
-  const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à', 'en', 'sur', 'par', 'pour']);
+  // CORRECTION: Liste étendue de mots à ignorer
+  const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à', 'en', 'sur', 'par', 'pour', "d'", "l'", "s'"]);
   if (name.includes(' ')) {
-    const words = name.split(' ')
+    const words = name.split(/[\s'-]+/) // Sépare par espace, apostrophe, trait d'union
                       .map(word => word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")) // Enlever accents
                       .filter(word => word.length > 1 && !commonWords.has(word)); 
     let abrev = words.map(word => word[0]).join('').toUpperCase();
     return abrev.substring(0, 4);
   } else {
+    // Si un seul mot, prendre les 4 premières lettres
     return name.substring(0, 4).toUpperCase();
   }
 };
@@ -143,7 +145,8 @@ const loadInitialState = (key, defaultValue) => {
     const parsed = JSON.parse(item);
     if (Array.isArray(defaultValue) && !Array.isArray(parsed)) {
         console.warn(`LocalStorage key "${key}" was not an array, falling back to default.`);
-        return defaultValue;
+        // CORRECTION: Retourner la valeur par défaut si le type ne correspond pas
+        return defaultValue; 
     }
     return parsed;
   } catch (error) {
@@ -165,14 +168,13 @@ const useLocalStorageState = (key, defaultValue) => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        // CORRECTION: Assurer que l'état est un array si la valeur par défaut l'est
         const valueToStore = (Array.isArray(defaultValue) && !Array.isArray(state)) ? defaultValue : state;
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       } catch (error) {
           console.error(`Erreur lors de la sauvegarde de ${key} dans localStorage`, error);
       }
     }
-  }, [key, state, defaultValue]); // Ajouter defaultValue aux dépendances
+  }, [key, state, defaultValue]); 
 
   return [state, setState];
 };
@@ -197,7 +199,6 @@ export default function App() {
 
   // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
-    // CORRECTION: Assurer que allProjects est un array
     return Array.isArray(allProjects) ? allProjects.find(p => p.id === selectedProjectId) : undefined; 
   }, [allProjects, selectedProjectId]);
   
@@ -397,18 +398,18 @@ const AdminLayoutWrapper = ({ children, currentUser }) => {
 
 
 // --- Page de Sélection de Projet ---
-// ... (Identique) ...
+// MODIFIÉ: Ajout bouton Info Projet
 const ProjectSelectionPage = ({ 
   userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode,
   isAdmin, allProjects, setAllProjects, allUsers, setUserProjects
 }) => {
   const [filter, setFilter] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false); // NOUVEAU: Modal Info Projet
   const [editingProject, setEditingProject] = useState(null);
+  const [infoProject, setInfoProject] = useState(null); // NOUVEAU: Projet pour modal info
   
-  // CORRECTION: S'assurer que allProjects est un array
   const currentAllProjects = Array.isArray(allProjects) ? allProjects : [];
-  // Utilise allProjects si admin, sinon userProjects
   const projectsToDisplay = isAdmin ? currentAllProjects : userProjects; 
   
   const getStatusColor = (statut) => { /* ... Identique ... */ 
@@ -420,44 +421,48 @@ const ProjectSelectionPage = ({
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
   };
-  const openModalToEdit = (project) => { setEditingProject(project); setIsModalOpen(true); };
-  const openModalToCreate = () => { setEditingProject(null); setIsModalOpen(true); };
-  const closeModal = () => { setIsModalOpen(false); setEditingProject(null); };
+  const openProjectModalToEdit = (project) => { setEditingProject(project); setIsProjectModalOpen(true); };
+  const openProjectModalToCreate = () => { setEditingProject(null); setIsProjectModalOpen(true); };
+  const closeProjectModal = () => { setIsProjectModalOpen(false); setEditingProject(null); };
+
+  // NOUVEAU: Fonctions pour modal info
+  const openInfoModal = (project) => { setInfoProject(project); setIsInfoModalOpen(true); };
+  const closeInfoModal = () => { setIsInfoModalOpen(false); setInfoProject(null); };
+
 
   const handleSave = (projectData) => {
     let savedProject = null;
-    let updatedAllProjects; // Variable pour stocker la liste mise à jour
+    let updatedAllProjects; 
 
     if (editingProject) {
       savedProject = { ...editingProject, ...projectData };
       updatedAllProjects = currentAllProjects.map(p => p.id === editingProject.id ? savedProject : p);
-      setAllProjects(updatedAllProjects); // Met à jour l'état global immédiatement
+      setAllProjects(updatedAllProjects); 
     } else {
       savedProject = {
         ...projectData,
         id: 'p' + Date.now(), 
         date_creation: new Date().toISOString().split('T')[0], 
       };
-      updatedAllProjects = [...currentAllProjects, savedProject]; // Ajoute le nouveau projet
-      setAllProjects(updatedAllProjects); // Met à jour l'état global immédiatement
+      updatedAllProjects = [...currentAllProjects, savedProject]; 
+      setAllProjects(updatedAllProjects); 
     }
-    closeModal();
+    closeProjectModal();
     
-    // Mettre à jour userProjects basé sur la liste `updatedAllProjects`
+    // Mettre à jour userProjects
     if (isAdmin || (savedProject.assigned_users && savedProject.assigned_users.includes(currentUser.id))) {
         let updatedUserProjects = [];
          if (isAdmin) {
-           updatedUserProjects = updatedAllProjects; // L'admin voit la nouvelle liste complète
+           updatedUserProjects = updatedAllProjects; 
          } else {
-           // Les autres utilisateurs voient la nouvelle liste filtrée
            updatedUserProjects = updatedAllProjects.filter(p => 
               (p.assigned_users && p.assigned_users.includes(currentUser.id)) ||
               (currentUser.role === 'Visiteur' && p.acces_visiteur === true) 
            ); 
          }
-        setUserProjects(updatedUserProjects); // Met à jour la liste des projets accessibles
+        setUserProjects(updatedUserProjects); 
 
-        // Si création et l'utilisateur courant est assigné OU si admin, ouvrir le projet
+        // Si création et admin ou assigné, ouvrir
         if (!editingProject && (isAdmin || (savedProject.assigned_users && savedProject.assigned_users.includes(currentUser.id)))) {
            onSelectProject(savedProject.id); 
         }
@@ -466,24 +471,18 @@ const ProjectSelectionPage = ({
 
   const handleDelete = (projectId) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible et supprimera aussi ses blocs, lots et plans.")) {
-      // Mettre à jour allProjects
       const updatedAllProjects = currentAllProjects.filter(p => p.id !== projectId);
       setAllProjects(updatedAllProjects); 
       
-      // Recalculer userProjects basé sur la liste mise à jour
       if (!isAdmin) {
           setUserProjects(updatedUserProjects.filter(p => 
               (p.assigned_users && p.assigned_users.includes(currentUser.id)) ||
               (currentUser.role === 'Visiteur' && p.acces_visiteur === true) 
            )); 
       } else {
-          setUserProjects(updatedAllProjects); // Admins voient tout
+          setUserProjects(updatedAllProjects); 
       }
-      
-      // TODO: Supprimer aussi les blocs, lots, plans associés des autres états localStorage
-      // setAllBlocks(prev => prev.filter(b => b.id_projet !== projectId));
-      // setAllLots(prev => prev.filter(l => l.id_projet !== projectId));
-      // setAllPlans(prev => prev.filter(pl => pl.id_projet !== projectId));
+      // TODO: Supprimer données associées
     }
   };
 
@@ -528,7 +527,7 @@ const ProjectSelectionPage = ({
            </h1>
            {isAdmin && (
              <button 
-               onClick={openModalToCreate}
+               onClick={openProjectModalToCreate}
                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
              >
                <Plus className="w-5 h-5 mr-2" />
@@ -583,21 +582,29 @@ const ProjectSelectionPage = ({
                        {project.commune}, {project.wilaya}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
-                       {project.assigned_users?.map(userId => allUsers.find(u => u.id === userId)?.username).join(', ') || 'N/A'}
+                       {/* MODIFIÉ: S'assurer que allUsers est un array */}
+                       {project.assigned_users?.map(userId => (Array.isArray(allUsers)? allUsers.find(u => u.id === userId)?.username : '?')).join(', ') || 'N/A'}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap">
                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(project.statut)}`}>
                          {project.statut}
                        </span>
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> {/* Espace réduit */}
                        <button onClick={() => onSelectProject(project.id)} title="Ouvrir"
                          className="p-1.5 text-white bg-blue-600 rounded hover:bg-blue-700">
                          <Home className="w-4 h-4" />
                        </button>
+                        {/* NOUVEAU: Bouton Info Projet */}
+                       {(isAdmin || (project.assigned_users && project.assigned_users.includes(currentUser.id))) && (
+                           <button onClick={() => openInfoModal(project)} title="Infos Projet"
+                             className="p-1.5 text-cyan-600 dark:text-cyan-400 rounded hover:bg-cyan-100 dark:hover:bg-gray-700">
+                             <Info className="w-4 h-4" />
+                           </button>
+                        )}
                        {isAdmin && (
                          <>
-                           <button onClick={() => openModalToEdit(project)} title="Modifier"
+                           <button onClick={() => openProjectModalToEdit(project)} title="Modifier"
                              className="p-1.5 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-gray-700">
                              <Edit2 className="w-4 h-4" />
                            </button>
@@ -618,15 +625,23 @@ const ProjectSelectionPage = ({
          )}
          
          {/* Modal Projet */}
-         <Modal isOpen={isModalOpen} onClose={closeModal} title={editingProject ? "Modifier le Projet" : "Créer un Projet"}>
+         <Modal isOpen={isProjectModalOpen} onClose={closeProjectModal} title={editingProject ? "Modifier le Projet" : "Créer un Projet"}>
            <ProjectForm 
              project={editingProject} 
              onSave={handleSave} 
-             onCancel={closeModal}
+             onCancel={closeProjectModal}
              allUsers={allUsers} 
              currentUser={currentUser}
            />
          </Modal>
+         
+         {/* NOUVEAU: Modal Info Projet */}
+         <ProjectInfoModal 
+            isOpen={isInfoModalOpen} 
+            onClose={closeInfoModal} 
+            project={infoProject} 
+            allUsers={allUsers} 
+         />
       </main>
     </div>
   );
@@ -937,16 +952,15 @@ const PlaceholderPage = ({ title, icon }) => (
 
 // --- Composants de Page ---
 
-// Tableau de bord
-// ... (Identique)
-const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLots, allProjects }) => {
+// MODIFIÉ: Tableau de bord (avec PieChart pourcentages + activité récente)
+const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
   const { projectId } = useParams();
 
   // Stats Spécifiques au projet sélectionné
-  // CORRECTION: Assurer que allPlans est un array
-  const projectPlans = useMemo(() => Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : [], [allPlans, projectId]);
+  const projectPlans = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
+  const totalProjectPlans = projectPlans.length;
 
-  // Calcul des comptes par statut pour les cartes
+  // Calcul des comptes par statut
   const planStatusCounts = useMemo(() => {
     return projectPlans.reduce((acc, plan) => {
       acc[plan.statut] = (acc[plan.statut] || 0) + 1;
@@ -959,17 +973,40 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLo
     });
   }, [projectPlans]);
 
-
-  // Données pour le Pie Chart (Statuts du projet sélectionné)
+  // Données pour le Pie Chart (Statuts du projet sélectionné avec pourcentages)
   const projectPieData = useMemo(() => {
     return [
-      { name: 'Approuvés CTC', value: planStatusCounts['Approuvé CTC'], color: '#10B981' },
-      { name: 'En cours', value: planStatusCounts["En cours d'approbation"], color: '#F59E0B' }, 
-      { name: 'Déposés MO', value: planStatusCounts['Déposé au MO'], color: '#3B82F6' },
-      { name: 'Obsolètes', value: planStatusCounts['Obsolète'], color: '#EF4444' },
-    ].filter(d => d.value > 0); // Filtrer les statuts à 0
+      { name: 'Approuvés CTC', value: planStatusCounts['Approuvé CTC'], color: '#10B981' }, // green-500
+      { name: 'En cours', value: planStatusCounts["En cours d'approbation"], color: '#F59E0B' }, // amber-500
+      { name: 'Déposés MO', value: planStatusCounts['Déposé au MO'], color: '#3B82F6' }, // blue-500
+      { name: 'Obsolètes', value: planStatusCounts['Obsolète'], color: '#EF4444' }, // red-500
+    ].filter(d => d.value > 0); 
   }, [planStatusCounts]);
+  
+  // Fonction pour afficher les labels du PieChart avec pourcentages
+  const RADIAN = Math.PI / 180;
+  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
+    // Ne pas afficher le label si le pourcentage est trop petit
+    if (percent < 0.05) return null; 
+
+    return (
+      <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize="12px">
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  };
+  
+  // Activité Récente (5 derniers plans ajoutés au projet)
+  const recentPlans = useMemo(() => {
+      return projectPlans
+          .slice() // Copie pour ne pas muter l'original
+          .sort((a, b) => new Date(b.date_creation) - new Date(a.date_creation)) // Trie par date décroissante
+          .slice(0, 5); // Prend les 5 plus récents
+  }, [projectPlans]);
 
   // StatCard reste générique
   const StatCard = ({ title, value, icon, colorClass }) => (
@@ -993,28 +1030,36 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLo
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord : {selectedProject.nom}</h1>
       
-      {/* MODIFIÉ: Cartes de statuts des plans */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Plans Approuvés CTC" value={planStatusCounts['Approuvé CTC']} icon={CheckCircle} colorClass="bg-green-500" />
-        <StatCard title="Plans En Cours" value={planStatusCounts["En cours d'approbation"]} icon={Clock} colorClass="bg-yellow-500" />
-        <StatCard title="Plans Déposés MO" value={planStatusCounts['Déposé au MO']} icon={FileText} colorClass="bg-blue-500" />
-        <StatCard title="Plans Obsolètes" value={planStatusCounts['Obsolète']} icon={XCircle} colorClass="bg-red-500" />
+      {/* MODIFIÉ: Cartes de statuts des plans + Total */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"> {/* Grid 5 colonnes */}
+        <StatCard title="Total Plans" value={totalProjectPlans} icon={FileText} colorClass="bg-gray-500" />
+        <StatCard title="Approuvés CTC" value={planStatusCounts['Approuvé CTC']} icon={CheckCircle} colorClass="bg-green-500" />
+        <StatCard title="En Cours" value={planStatusCounts["En cours d'approbation"]} icon={Clock} colorClass="bg-yellow-500" />
+        <StatCard title="Déposés MO" value={planStatusCounts['Déposé au MO']} icon={ExternalLink} colorClass="bg-blue-500" />
+        <StatCard title="Obsolètes" value={planStatusCounts['Obsolète']} icon={XCircle} colorClass="bg-red-500" />
       </div>
 
       {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          {/* MODIFIÉ: Graphique Pie spécifique au projet */}
           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Répartition des Statuts (Projet)</h3>
-          {projectPlans.length > 0 ? (
+          {totalProjectPlans > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={projectPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                <Pie 
+                  data={projectPieData} 
+                  dataKey="value" 
+                  nameKey="name" 
+                  cx="50%" cy="50%" 
+                  outerRadius={110} // Rayon légèrement augmenté
+                  labelLine={false}
+                  label={renderCustomizedLabel} // Utilise label customisé
+                >
                   {projectPieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value, name) => [value, name]} />
+                <Tooltip formatter={(value, name) => [`${value} (${((value / totalProjectPlans) * 100).toFixed(1)}%)`, name]} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -1022,21 +1067,36 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLo
             <div className="flex items-center justify-center h-[300px] text-gray-400">Aucun plan pour ce projet.</div>
           )}
         </div>
-         {/* MODIFIÉ: Graphique Barres supprimé pour l'instant */}
+         {/* NOUVEAU: Section Activité Récente */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Récente (Prochainement)</h3>
-           <div className="flex items-center justify-center h-[300px] text-gray-400">
-              Historique des dernières actions...
-           </div>
+           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Récente (Derniers Plans Ajoutés)</h3>
+           {recentPlans.length > 0 ? (
+               <ul className="space-y-3 max-h-[300px] overflow-y-auto">
+                   {recentPlans.map(plan => {
+                       const creator = Array.isArray(allUsers) ? allUsers.find(u => u.id === plan.id_createur)?.username : '?';
+                       return (
+                           <li key={plan.id} className="flex items-start space-x-3 text-sm pb-3 border-b dark:border-gray-700 last:border-b-0">
+                               <FileText className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0"/>
+                               <div>
+                                   <p className="font-medium dark:text-gray-100 truncate" title={plan.titre}>{plan.titre || <span className="italic">Sans titre</span>}</p>
+                                   <p className="text-xs text-gray-500 dark:text-gray-400">
+                                       <span className="font-semibold">{plan.reference}</span> - Ajouté le {plan.date_creation} par {creator}
+                                   </p>
+                               </div>
+                           </li>
+                       );
+                   })}
+               </ul>
+           ) : (
+               <div className="flex items-center justify-center h-[300px] text-gray-400">Aucune activité récente.</div>
+           )}
         </div>
       </div>
     </div>
   );
 };
 
-
-// Formulaire Projet (avec multi-assignation)
-// ... (Identique)
+// Formulaire Projet (avec dates exécution)
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
   const [abreviation, setAbreviation] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
@@ -1047,13 +1107,19 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [statut, setStatut] = useState(project ? project.statut : 'en étude');
   const [assignedUsers, setAssignedUsers] = useState(project ? project.assigned_users || [] : [currentUser.id]); 
   
+  // NOUVEAU: Champs date et délai
+  const [dateDemarrage, setDateDemarrage] = useState(project ? project.date_demarrage || '' : '');
+  const [delai, setDelai] = useState(project ? project.delai || '' : '');
+  const [uniteDelai, setUniteDelai] = useState(project ? project.unite_delai || 'jours' : 'jours');
+  const dateFinCalculee = useMemo(() => calculateEndDate(dateDemarrage, delai, uniteDelai), [dateDemarrage, delai, uniteDelai]);
+
+  
   const [dairas, setDairas] = useState([]);
   const [communes, setCommunes] = useState([]);
   const [autoAbrev, setAutoAbrev] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
   
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
-  
-  // CORRECTION: assignableUsers inclut tout le monde sauf le gérant principal
+  // CORRECTION: AssignableUsers inclut TOUS les users SAUF gérant principal
   const assignableUsers = useMemo(() => allUsers.filter(u => u.role !== 'Gérant principal'), [allUsers]); 
 
   useEffect(() => { /* ... Logique abréviation identique ... */ 
@@ -1070,7 +1136,6 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setDairas([]);
     }
-    // Ne pas réinitialiser daira si on édite et que la wilaya est la même
     if (!project || (project && project.wilaya !== wilaya)) {
         setDaira('');
     }
@@ -1082,7 +1147,6 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setCommunes([]);
     }
-     // Ne pas réinitialiser commune si on édite et que la daira est la même
     if (!project || (project && (project.wilaya !== wilaya || project.daira !== daira))) {
         setCommune('');
     }
@@ -1091,12 +1155,14 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   // Pré-remplir si édition
   useEffect(() => {
     if (project) {
-       setNom(project.nom);
-       setAbreviation(project.abreviation);
-       setWilaya(project.wilaya);
-       setAdresse(project.adresse);
-       setStatut(project.statut);
-       setAssignedUsers(project.assigned_users || []); // Utilise assigned_users
+       setNom(project.nom); setAbreviation(project.abreviation); setWilaya(project.wilaya);
+       setAdresse(project.adresse); setStatut(project.statut);
+       setAssignedUsers(project.assigned_users || []); 
+       // Dates
+       setDateDemarrage(project.date_demarrage || '');
+       setDelai(project.delai || '');
+       setUniteDelai(project.unite_delai || 'jours');
+       
        if (project.wilaya && algeriaLocations[project.wilaya]) {
          setDairas(Object.keys(algeriaLocations[project.wilaya]));
          setDaira(project.daira); 
@@ -1110,6 +1176,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
         // Réinitialiser si création
         setNom(''); setAbreviation(''); setWilaya(''); setDaira(''); setCommune(''); 
         setAdresse(''); setStatut('en étude'); setAssignedUsers([currentUser.id]);
+        setDateDemarrage(''); setDelai(''); setUniteDelai('jours');
         setDairas([]); setCommunes([]); setAutoAbrev('');
     }
   }, [project, currentUser.id]); 
@@ -1123,18 +1190,28 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Validation pour dates si statut = en exécution
+    if (statut === 'en exécution' && (!dateDemarrage || !delai || isNaN(parseInt(delai)))) {
+       alert("Pour un projet 'en exécution', la date de démarrage et le délai sont obligatoires.");
+       return;
+    }
+    
     onSave({
       ...project,
       nom,
       abreviation: abreviation.toUpperCase(),
       wilaya, daira, commune, adresse, statut, 
-      assigned_users: assignedUsers 
+      assigned_users: assignedUsers,
+      // NOUVEAU: Sauvegarder dates et délai
+      date_demarrage: dateDemarrage || null, 
+      delai: delai ? parseInt(delai) : null,
+      unite_delai: delai ? uniteDelai : 'jours' 
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-      {/* ... Champs Nom, Abréviation, Adresse, Localisation, Statut ... Identiques */}
+      {/* ... Champs Nom, Abréviation, Adresse, Localisation ... Identiques */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Projet</label>
@@ -1179,7 +1256,10 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
               </select>
             </div>
           </div>
-          <div>
+          
+        {/* MODIFIÉ: Statut et Champs Délai regroupés */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut</label>
               <select value={statut} onChange={(e) => setStatut(e.target.value)} required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
@@ -1188,9 +1268,40 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
                 <option value="achevé">Achevé</option>
                 <option value="suspendu">Suspendu</option>
               </select>
+             </div>
+             <div>
+               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date démarrage</label>
+               <input type="date" value={dateDemarrage} onChange={(e) => setDateDemarrage(e.target.value)} 
+                 required={statut === 'en exécution'} // Obligatoire si en exécution
+                 className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 ${statut === 'en exécution' ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
+             </div>
+             <div className="flex space-x-2">
+                 <div className="flex-1">
+                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Délai</label>
+                     <input type="number" value={delai} onChange={(e) => setDelai(e.target.value)} min="1" 
+                       required={statut === 'en exécution'} 
+                       className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 ${statut === 'en exécution' ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
+                 </div>
+                 <div className="w-1/3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Unité</label>
+                     <select value={uniteDelai} onChange={(e) => setUniteDelai(e.target.value)} required={statut === 'en exécution'}
+                       className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 ${statut === 'en exécution' ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'}`}>
+                       <option value="jours">Jours</option>
+                       <option value="mois">Mois</option>
+                     </select>
+                 </div>
+             </div>
+              <div>
+                 <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Date fin (estimée)</label>
+                 <input type="date" value={dateFinCalculee || ''} readOnly disabled 
+                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-600 cursor-not-allowed" />
+             </div>
           </div>
+          {statut === 'en exécution' && (!dateDemarrage || !delai) && (
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">Date démarrage et délai sont requis pour le statut 'en exécution'.</p>
+          )}
       
-      {/* CORRECTION: Champ Assignation Multiple (affiche TOUS les users sauf gérant principal) */}
+      {/* Assignation Multiple */}
       {isAdmin && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Utilisateurs Assignés</label>
@@ -1198,7 +1309,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
             {assignableUsers.map(user => (
               <div key={user.id} className="flex items-center">
                 <input
-                  id={`user-assign-${user.id}`} // ID unique pour le label
+                  id={`user-assign-${user.id}`} 
                   type="checkbox"
                   checked={assignedUsers.includes(user.id)}
                   onChange={() => handleUserAssignmentChange(user.id)}
@@ -1217,7 +1328,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Vous serez automatiquement assigné comme responsable.</p>
       )}
 
-      {/* ... Boutons Annuler/Enregistrer ... Identiques */}
+      {/* Boutons */}
       <div className="flex justify-end space-x-3 pt-4">
         <button type="button" onClick={onCancel}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -1233,31 +1344,103 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   );
 };
 
-// Modal Historique Révisions
-// ... (Identique)
-const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
+// NOUVEAU: Modal Info Projet
+const ProjectInfoModal = ({ isOpen, onClose, project, allUsers }) => {
+   if (!isOpen || !project) return null;
+
+   const assignedUsernames = project.assigned_users
+       ?.map(userId => allUsers.find(u => u.id === userId)?.username)
+       .filter(Boolean) // Enlève les undefined si un user a été supprimé
+       .join(', ') || 'Aucun';
+       
+   const endDate = calculateEndDate(project.date_demarrage, project.delai, project.unite_delai);
+
+   return (
+     <Modal isOpen={isOpen} onClose={onClose} title={`Informations: ${project.nom}`}>
+       <div className="space-y-4 text-sm">
+         <p><strong>Abréviation:</strong> {project.abreviation}</p>
+         <p><strong>Localisation:</strong> {project.commune}, {project.daira}, {project.wilaya}</p>
+         <p><strong>Adresse:</strong> {project.adresse || 'N/A'}</p>
+         <p><strong>Statut:</strong> {project.statut}</p>
+         <p><strong>Date Création:</strong> {project.date_creation}</p>
+         <p><strong>Utilisateurs Assignés:</strong> {assignedUsernames}</p>
+         {project.lien_maps && (
+            <p><strong>Lien Maps:</strong> <a href={project.lien_maps} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ouvrir</a></p>
+         )}
+         
+         {(project.statut === 'en exécution' || project.statut === 'achevé') && (
+            <div className="pt-4 mt-4 border-t dark:border-gray-600">
+               <h4 className="font-semibold mb-2">Délais d'Exécution</h4>
+               <p><strong>Date Démarrage:</strong> {project.date_demarrage || 'Non définie'}</p>
+               <p><strong>Délai:</strong> {project.delai ? `${project.delai} ${project.unite_delai}` : 'Non défini'}</p>
+               <p><strong>Date Fin (Estimée):</strong> {endDate || 'N/A'}</p>
+            </div>
+         )}
+         
+       </div>
+       <div className="flex justify-end pt-4 mt-4 border-t dark:border-gray-700">
+         <button type="button" onClick={onClose}
+           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+           Fermer
+         </button>
+       </div>
+     </Modal>
+   );
+};
+
+
+// NOUVEAU: Modal Info Plan (remplace RevisionHistoryModal)
+const PlanInfoModal = ({ isOpen, onClose, plan, allUsers, projectBlocks, projectLots }) => {
   if (!isOpen || !plan) return null;
 
+   const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
+   const lot = projectLots.find(l => l.id === plan.id_lot);
+   const sousLot = lot?.sousLots.find(sl => sl.id === plan.id_souslot);
+   const creator = Array.isArray(allUsers) ? allUsers.find(u => u.id === plan.id_createur)?.username : '?';
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Historique: ${plan.reference}`}>
-      <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-        {plan.historique && plan.historique.length > 0 ? ( 
-          plan.historique
-            .slice() 
-            .sort((a, b) => new Date(b.date) - new Date(a.date)) 
-            .map((rev, index) => (
-              <div key={index} className="pb-4 border-b dark:border-gray-700 last:border-b-0">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-semibold text-lg text-blue-600 dark:text-blue-400">{rev.version}</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{rev.date}</span>
-                </div>
-                <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">Par: <span className="font-medium">{rev.utilisateur || 'N/A'}</span></p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-2 rounded">{rev.commentaire || <span className="italic">Aucun commentaire</span>}</p>
-              </div>
-            ))
-        ) : (
-          <p className="text-center text-gray-500 dark:text-gray-400">Aucun historique de révision pour ce plan.</p>
-        )}
+    <Modal isOpen={isOpen} onClose={onClose} title={`Détails: ${plan.reference}`}>
+      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+         {/* Détails du Plan */}
+         <div className="pb-4 border-b dark:border-gray-700">
+             <h4 className="font-semibold mb-2 text-lg">Informations Générales</h4>
+             <p className="text-sm"><strong>Titre:</strong> {plan.titre}</p>
+             <p className="text-sm"><strong>Référence:</strong> {plan.reference}</p>
+             <p className="text-sm"><strong>Statut:</strong> {plan.statut}</p>
+             <p className="text-sm"><strong>Bloc:</strong> {bloc?.nom || '?'} ({bloc?.abreviation || '?'})</p>
+             <p className="text-sm"><strong>Lot:</strong> {lot?.nom || '?'} ({lot?.abreviation || '?'})</p>
+             {sousLot && <p className="text-sm"><strong>Sous-Lot:</strong> {sousLot.nom} ({sousLot.abreviation})</p>}
+             <p className="text-sm"><strong>Créé le:</strong> {plan.date_creation} par {creator}</p>
+             <p className="text-sm">
+                <strong>Fichier:</strong> 
+                {plan.fichier_pdf?.startsWith('http') ? (
+                   <a href={plan.fichier_pdf} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-1"> {plan.fichier_pdf} <ExternalLink className="w-3 h-3 inline-block ml-1"/></a>
+                ) : (
+                   <span className="ml-1">{plan.fichier_pdf || 'Aucun'}</span>
+                )}
+             </p>
+         </div>
+         {/* Historique des Révisions */}
+         <div>
+            <h4 className="font-semibold mb-2 text-lg">Historique des Révisions</h4>
+             {plan.historique && plan.historique.length > 0 ? ( 
+              plan.historique
+                .slice() 
+                .sort((a, b) => new Date(b.date) - new Date(a.date)) 
+                .map((rev, index) => (
+                  <div key={index} className="pb-4 border-b dark:border-gray-700 last:border-b-0 mb-4 last:mb-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-md text-blue-600 dark:text-blue-400">{rev.version}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{rev.date}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">Par: <span className="font-medium">{rev.utilisateur || 'N/A'}</span></p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-2 rounded">{rev.commentaire || <span className="italic">Aucun commentaire</span>}</p>
+                  </div>
+                ))
+            ) : (
+              <p className="text-center text-gray-500 dark:text-gray-400">Aucun historique de révision pour ce plan.</p>
+            )}
+         </div>
       </div>
        <div className="flex justify-end pt-4 mt-4 border-t dark:border-gray-700">
         <button
@@ -1273,50 +1456,64 @@ const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
 };
 
 
-// Page Plans (avec CUD partiel et modal révisions)
-// CORRECTION: Assurer que allBlocks et allLots sont bien des arrays avant de filtrer
-// CORRECTION: Transmettre allPlans au formulaire PlanForm
+// Page Plans (avec CUD partiel et modals info/révision)
 const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots, currentUser, allUsers }) => { 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false); 
-  const [selectedPlanForHistory, setSelectedPlanForHistory] = useState(null); 
+  // MODIFIÉ: Renommé pour clarté
+  const [isPlanInfoModalOpen, setIsPlanInfoModalOpen] = useState(false); 
+  const [selectedPlanForInfo, setSelectedPlanForInfo] = useState(null); 
   const [editingPlan, setEditingPlan] = useState(null); 
-  const [isAddRevisionModalOpen, setIsAddRevisionModalOpen] = useState(false); // NOUVEAU: État pour modal ajout révision
-  const [planToRevise, setPlanToRevise] = useState(null); // NOUVEAU: Plan pour ajouter une révision
+  const [isAddRevisionModalOpen, setIsAddRevisionModalOpen] = useState(false); 
+  const [planToRevise, setPlanToRevise] = useState(null); 
+  const [searchTerm, setSearchTerm] = useState(''); // NOUVEAU: État pour le filtre
 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const { projectId } = useParams(); 
 
-  // Vérification de sécurité et de validité
+  // Vérification sécurité/validité
   if (!projectId || !selectedProject || selectedProject.id !== projectId) {
      console.error("PlansPage: ProjectId invalide ou selectedProject non synchronisé", {projectId, selectedProject});
      return <Navigate to="/select-project" replace />; 
   }
   
-  // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
-  // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
-  const projectPlans = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
+  // Assurer que les listes sont des arrays
+  const projectPlansBase = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
   const projectBlocks = useMemo(() => (Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : []), [allBlocks, projectId]);
   const projectLots = useMemo(() => (Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : []), [allLots, projectId]);
 
+  // NOUVEAU: Filtrage des plans basé sur searchTerm
+  const projectPlans = useMemo(() => {
+    if (!searchTerm) return projectPlansBase;
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    return projectPlansBase.filter(plan => {
+      const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
+      const lot = projectLots.find(l => l.id === plan.id_lot);
+      return (
+        plan.titre?.toLowerCase().includes(lowerSearchTerm) ||
+        plan.reference?.toLowerCase().includes(lowerSearchTerm) ||
+        bloc?.abreviation?.toLowerCase().includes(lowerSearchTerm) ||
+        lot?.abreviation?.toLowerCase().includes(lowerSearchTerm)
+        // Ajouter filtre sous-lot si nécessaire
+      );
+    });
+  }, [projectPlansBase, searchTerm, projectBlocks, projectLots]);
+
 
   const openPlanModalToCreate = () => { setEditingPlan(null); setIsPlanModalOpen(true); };
-  const openPlanModalToEdit = (plan) => { setEditingPlan(plan); setIsPlanModalOpen(true); }; // NOUVEAU
+  const openPlanModalToEdit = (plan) => { setEditingPlan(plan); setIsPlanModalOpen(true); }; 
   const closePlanModal = () => { setIsPlanModalOpen(false); setEditingPlan(null); };
   
-  const openRevisionHistoryModal = (plan) => { setSelectedPlanForHistory(plan); setIsRevisionModalOpen(true); };
-  const closeRevisionHistoryModal = () => { setIsRevisionModalOpen(false); setSelectedPlanForHistory(null); };
+  // MODIFIÉ: Fonctions pour modal Info Plan
+  const openPlanInfoModal = (plan) => { setSelectedPlanForInfo(plan); setIsPlanInfoModalOpen(true); };
+  const closePlanInfoModal = () => { setIsPlanInfoModalOpen(false); setSelectedPlanForInfo(null); };
 
-  // NOUVEAU: Fonctions pour modal ajout révision
   const openAddRevisionModal = (plan) => { setPlanToRevise(plan); setIsAddRevisionModalOpen(true); };
   const closeAddRevisionModal = () => { setIsAddRevisionModalOpen(false); setPlanToRevise(null); };
   
   const handleSavePlan = (planData) => { 
     if (editingPlan) {
-       // NOUVEAU: Logique de modification simple (titre, statut, fichier)
        setAllPlans(prevPlans => prevPlans.map(p => p.id === editingPlan.id ? { ...p, titre: planData.titre, statut: planData.statut, fichier_pdf: planData.fichier_pdf } : p));
     } else {
-      // Création (inchangée)
       const newPlan = { ...planData, id: 'pl' + Date.now() };
       setAllPlans(prevPlans => [...prevPlans, newPlan]);
     }
@@ -1329,30 +1526,26 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
     }
    };
    
-   // NOUVEAU: Gérer la sauvegarde d'une révision
    const handleSaveRevision = (revisionData) => {
       setAllPlans(prevPlans => prevPlans.map(p => {
           if (p.id === planToRevise.id) {
               const nextRevisionNum = p.revision + 1;
               const nextRevisionStr = String(nextRevisionNum).padStart(2, '0');
-              // Construire la nouvelle référence en remplaçant la partie révision
               const baseReference = p.reference.substring(0, p.reference.lastIndexOf('-R') + 2); 
               const newReference = `${baseReference}${nextRevisionStr}`;
-              
               const newHistoryEntry = {
                   version: `R${nextRevisionStr}`,
                   date: new Date().toISOString().split('T')[0],
                   utilisateur: currentUser.username,
                   commentaire: revisionData.commentaire || 'Nouvelle révision'
               };
-              
               return {
                   ...p,
                   reference: newReference,
                   revision: nextRevisionNum,
-                  fichier_pdf: revisionData.fichier_pdf, // Nom du nouveau fichier
+                  fichier_pdf: revisionData.fichier_pdf, 
                   historique: [...p.historique, newHistoryEntry],
-                  statut: "En cours d'approbation" // Réinitialiser statut par défaut pour nouvelle révision? Ou garder l'ancien? -> Mettre en cours
+                  statut: "En cours d'approbation" 
               };
           }
           return p;
@@ -1382,9 +1575,26 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
         )}
       </div>
 
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex space-x-4">
-        <input type="text" placeholder="Filtrer..."
-          className="w-full pl-4 pr-4 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      {/* MODIFIÉ: Barre filtre/export */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex items-center space-x-4">
+        <div className="flex-1 relative">
+          <input 
+            type="text" 
+            placeholder="Filtrer par titre, réf, bloc, lot..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        </div>
+         <button onClick={() => alert("Export PDF bientôt disponible")} className="flex items-center px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700">
+           <Download className="w-4 h-4 mr-1"/> PDF
+         </button>
+         <button onClick={() => alert("Export Excel bientôt disponible")} className="flex items-center px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700">
+           <Download className="w-4 h-4 mr-1"/> Excel
+         </button>
+         <button onClick={() => alert("Export Word bientôt disponible")} className="flex items-center px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+           <Download className="w-4 h-4 mr-1"/> Word
+         </button>
       </div>
 
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
@@ -1405,6 +1615,8 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                const lot = projectLots.find(l => l.id === plan.id_lot);
                const lastRevision = plan.historique && plan.historique.length > 0 ? plan.historique[plan.historique.length - 1] : null;
                const creator = Array.isArray(allUsers) ? allUsers.find(u=> u.id === plan.id_createur) : null; 
+               // NOUVEAU: Vérifier si le fichier est un lien
+               const isLink = typeof plan.fichier_pdf === 'string' && plan.fichier_pdf.startsWith('http');
 
                return (
                   <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -1416,9 +1628,15 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold dark:text-gray-100">{plan.reference}</div>
-                      <div className="text-sm text-blue-600 dark:text-blue-400">{plan.fichier_pdf}</div>
+                      {/* MODIFIÉ: Affichage du lien cliquable si c'est une URL */}
+                      {isLink ? (
+                         <a href={plan.fichier_pdf} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline truncate block" title={plan.fichier_pdf}>Lien Google Drive <ExternalLink className="w-3 h-3 inline"/></a>
+                      ) : (
+                         <div className="text-sm text-gray-500 dark:text-gray-400 truncate" title={plan.fichier_pdf}>{plan.fichier_pdf || 'Aucun fichier'}</div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-300">{plan.titre}</td>
+                    {/* MODIFIÉ: Utilisation de whitespace-pre-wrap pour le titre */}
+                    <td className="px-6 py-4 text-sm dark:text-gray-300 whitespace-pre-wrap max-w-xs">{plan.titre}</td> 
                     <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
                       <div><span className="font-semibold">Bloc:</span> {bloc?.abreviation || 'N/A'}</div>
                       <div><span className="font-semibold">Lot:</span> {lot?.abreviation || 'N/A'}</div>
@@ -1429,24 +1647,22 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                         {lastRevision ? `par ${lastRevision.utilisateur}` : `par ${creator?.username || '?'}`}
                        </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> {/* Espace réduit */}
-                      <button onClick={() => openRevisionHistoryModal(plan)} title="Voir Historique"
-                         className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                         <History className="w-4 h-4" /> 
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> 
+                      {/* MODIFIÉ: Utilisation du bouton Info */}
+                      <button onClick={() => openPlanInfoModal(plan)} title="Voir Détails & Historique"
+                         className="p-1.5 text-cyan-600 dark:text-cyan-400 rounded hover:bg-cyan-100 dark:hover:bg-gray-700">
+                         <Info className="w-4 h-4" /> 
                       </button>
                       {isAdmin && (
                         <>
-                        {/* NOUVEAU: Bouton Modifier plan */}
                         <button onClick={() => openPlanModalToEdit(plan)} title="Modifier" 
                            className="p-1.5 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-gray-700">
                            <Edit2 className="w-4 h-4" />
                          </button>
-                         {/* NOUVEAU: Bouton Ajouter révision */}
                         <button onClick={() => openAddRevisionModal(plan)} title="Ajouter Révision"
                            className="p-1.5 text-indigo-600 dark:text-indigo-400 rounded hover:bg-indigo-100 dark:hover:bg-gray-700">
                            <FileDiff className="w-4 h-4" />
                          </button>
-                         {/* NOUVEAU: Bouton Supprimer plan */}
                          <button onClick={() => handleDeletePlan(plan.id)} title="Supprimer"
                            className="p-1.5 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-gray-700">
                            <Trash2 className="w-4 h-4" />
@@ -1457,8 +1673,13 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                         className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
                         <Copy className="w-4 h-4" />
                       </button>
-                       <a href="#" onClick={(e) => { e.preventDefault(); alert(`Ouverture simulée de ${plan.fichier_pdf}`); }} title="Voir PDF"
-                         className="p-1.5 inline-block text-green-600 dark:text-green-400 rounded hover:bg-green-100 dark:hover:bg-gray-700">
+                       {/* MODIFIÉ: Ouverture du lien si c'est une URL */}
+                       <a href={isLink ? plan.fichier_pdf : "#"} 
+                          target={isLink ? "_blank" : ""} 
+                          rel={isLink ? "noopener noreferrer" : ""} 
+                          onClick={(e) => { if (!isLink) { e.preventDefault(); alert(`Ouverture simulée de ${plan.fichier_pdf}`); } }} 
+                          title="Voir PDF"
+                         className={`p-1.5 inline-block rounded ${isLink ? 'text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50'}`}>
                          <ExternalLink className="w-4 h-4" />
                        </a>
                     </td>
@@ -1467,7 +1688,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
             })}
              {projectPlans.length === 0 && (
                 <tr>
-                   <td colSpan="6" className="text-center py-10 text-gray-500 dark:text-gray-400">Aucun plan trouvé pour ce projet.</td>
+                   <td colSpan="6" className="text-center py-10 text-gray-500 dark:text-gray-400">Aucun plan trouvé pour ce projet {searchTerm ? 'avec ces filtres' : ''}.</td>
                 </tr>
              )}
           </tbody>
@@ -1488,15 +1709,17 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
          />
        </Modal>
        
-       {/* Modal Historique Révisions */}
-       <RevisionHistoryModal 
-         isOpen={isRevisionModalOpen} 
-         onClose={closeRevisionHistoryModal} 
-         plan={selectedPlanForHistory}
+       {/* MODIFIÉ: Utilisation PlanInfoModal */}
+       <PlanInfoModal 
+         isOpen={isPlanInfoModalOpen} 
+         onClose={closePlanInfoModal} 
+         plan={selectedPlanForInfo}
          allUsers={allUsers} 
+         projectBlocks={projectBlocks} // Passer les blocs/lots filtrés
+         projectLots={projectLots}
        />
        
-       {/* NOUVEAU: Modal Ajout Révision */}
+       {/* Modal Ajout Révision */}
        <Modal isOpen={isAddRevisionModalOpen} onClose={closeAddRevisionModal} title={`Ajouter Révision à ${planToRevise?.reference.split('-R')[0]}-R${String((planToRevise?.revision || 0) + 1).padStart(2,'0')}`}>
           <RevisionForm 
              plan={planToRevise}
@@ -1508,7 +1731,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
     </div>
   );
 };
-
 
 // Modal Générique
 // ... (Identique)
@@ -2207,6 +2429,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
             return;
           }
           // --- Génération référence ---
+          // CORRECTION: Assurer que allPlans est un array avant de filtrer
           const plansInContext = (Array.isArray(allPlans) ? allPlans : []).filter(p => 
             p.id_projet === selectedProject.id && 
             p.id_bloc === idBloc && 
@@ -2253,7 +2476,6 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     return (
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
         <div>
-          {/* MODIFIÉ: Utilisation de textarea pour le titre */}
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
           <textarea value={titre} onChange={(e) => setTitre(e.target.value)} required rows="3"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
