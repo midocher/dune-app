@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// Imports de React Router ( useParams ajouté )
+// Imports de React Router
 import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
 
 // Import des graphiques
@@ -12,12 +12,11 @@ import {
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
   Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye, 
-  ArrowRight, ShieldCheck, ExternalLink, Upload // NOUVELLE ICÔNE
+  ArrowRight, ShieldCheck, ExternalLink, Upload, History // NOUVELLE ICÔNE
 } from 'lucide-react';
 
 // --- Données de Simulation (à remplacer par votre API) ---
 
-// Données fictives pour les Wilayas, Daïras, Communes (Algérie)
 const algeriaLocations = {
   "16 - Alger": {
     "Alger Centre": ["Alger Centre", "Sidi M'Hamed"],
@@ -36,16 +35,18 @@ const algeriaLocations = {
 };
 
 const mockUsers = [
-  { id: 'u1', username: 'gérant.principal', role: 'Gérant principal', password: 'admin' }, // Mot de passe simulé
+  { id: 'u1', username: 'gérant.principal', role: 'Gérant principal', password: 'admin' }, 
   { id: 'u2', username: 'admin.secondaire', role: 'Administrateur secondaire', password: 'admin' },
   { id: 'u3', username: 'ing.suivi', role: 'Ingénieur de suivi', password: 'user' },
   { id: 'u4', username: 'visiteur.temp', role: 'Visiteur', password: 'guest' },
+  { id: 'u5', username: 'autre.ing', role: 'Ingénieur de suivi', password: 'user' }, // Nouvel ingénieur
 ];
 
+// MODIFIÉ: Utilisation de assigned_users (array d'IDs)
 const mockProjects = [
-  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", id_responsable: 'u3', statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
-  { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", id_responsable: 'u3', statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
-  { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", id_responsable: 'u2', statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
+  { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", assigned_users: ['u3', 'u5'], statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true },
+  { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", assigned_users: ['u3'], statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false },
+  { id: 'p3', nom: "Tour de bureaux 'Le Phare'", abreviation: "PHARE", wilaya: "16 - Alger", daira: "Bab El Oued", commune: "Bab El Oued", adresse: "Place des Martyrs", lien_maps: "", assigned_users: ['u2'], statut: "achevé", date_creation: "2023-01-10", acces_visiteur: false },
 ];
 
 const mockLotsInit = [ 
@@ -65,19 +66,29 @@ const mockPlansInit = [
   { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "sim-plan-a.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
   { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
   { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
+  { id: 'pl4', id_projet: 'p1', id_bloc: 'b2', id_lot: 'l1', id_souslot: null, reference: "DUNE-HEB-ARCH-003-R00", titre: "Façade Ouest Hébergement", statut: "En cours d'approbation", numero: 3, revision: 0, date_creation: "2024-10-20", id_createur: 'u5', fichier_pdf: "sim-plan-d.pdf", historique: [{ version: 'R00', date: '2024-10-20', utilisateur: 'autre.ing', commentaire: 'Première version' }] },
 ];
 // --- Fin des Données de Simulation ---
 
 // --- Fonctions Utilitaires ---
-// NOUVEAU: Génération d'abréviation
+// MODIFIÉ: Génération d'abréviation améliorée
 const generateAbbreviation = (name) => {
   if (!name) return '';
-  // Prend les initiales des mots importants (plus de 2 lettres), max 4 lettres
-  const words = name.split(' ').filter(word => word.length > 2);
-  return words.map(word => word[0]).join('').substring(0, 4).toUpperCase();
+  // Mots à ignorer (articles, prépositions courts)
+  const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à']);
+  const words = name.split(' ')
+                    .map(word => word.toLowerCase()) // Convertir en minuscules pour comparaison
+                    .filter(word => word.length > 1 && !commonWords.has(word)); // Filtrer mots courts et communs
+  
+  // Prendre la première lettre de chaque mot significatif
+  let abrev = words.map(word => word[0]).join('').toUpperCase();
+  
+  // Limiter à 4 caractères
+  return abrev.substring(0, 4);
 };
 
 // Hook pour le mode sombre
+// ... (Identique)
 const useDarkMode = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -102,6 +113,7 @@ const useDarkMode = () => {
 };
 
 // Fonction pour charger l'état initial depuis le localStorage
+// ... (Identique)
 const loadInitialState = (key, defaultValue) => {
   if (typeof window === 'undefined') {
     return defaultValue;
@@ -116,6 +128,7 @@ const loadInitialState = (key, defaultValue) => {
 };
 
 // Hook pour synchroniser l'état avec le localStorage
+// ... (Identique)
 const useLocalStorageState = (key, defaultValue) => {
   const [state, setState] = useState(() => loadInitialState(key, defaultValue));
 
@@ -138,7 +151,7 @@ export default function App() {
   const [userProjects, setUserProjects] = useLocalStorageState('dune-userProjects', []); // Projets accessibles par l'utilisateur
   const [selectedProjectId, setSelectedProjectId] = useLocalStorageState('dune-selectedProjectId', null); // Projet actuellement actif
   
-  // Listes de données maîtresses (simulant la BDD) - utilisent useState simple car non persistées entre sessions
+  // Listes de données maîtresses (simulant la BDD)
   const [allProjects, setAllProjects] = useState(mockProjects);
   const [allBlocks, setAllBlocks] = useState(mockBlocksInit);
   const [allLots, setAllLots] = useState(mockLotsInit);
@@ -147,7 +160,7 @@ export default function App() {
   
   const navigate = useNavigate();
 
-  // Mémorisation du projet sélectionné (basé sur l'ID stocké)
+  // Mémorisation du projet sélectionné
   const selectedProject = useMemo(() => {
     return allProjects.find(p => p.id === selectedProjectId); 
   }, [allProjects, selectedProjectId]);
@@ -161,22 +174,21 @@ export default function App() {
       setIsAuthenticated(true);
 
       let filteredProjects = [];
+      // MODIFIÉ: Admins voient tout, les autres voient les projets assignés OU visiteur si applicable
       if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
         filteredProjects = allProjects; 
-      } else if (user.role === 'Ingénieur de suivi' || user.role === 'Visiteur') {
-        filteredProjects = allProjects.filter(p => p.id_responsable === user.id || (user.role === 'Visiteur' && p.acces_visiteur === true)); 
+      } else {
+        filteredProjects = allProjects.filter(p => 
+          (p.assigned_users && p.assigned_users.includes(user.id)) || 
+          (user.role === 'Visiteur' && p.acces_visiteur === true)
+        ); 
       }
       
       setUserProjects(filteredProjects);
-      setSelectedProjectId(null); // Force la sélection
+      setSelectedProjectId(null); 
       
-      // NOUVEAU: Redirige vers /select-project OU /admin/users si admin
-      if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
-         // Optionnel: Aller directement à l'admin si pas de projets ? Pour l'instant, sélection
-         navigate('/select-project'); 
-      } else {
-         navigate('/select-project');
-      }
+      // Toujours rediriger vers la sélection
+      navigate('/select-project'); 
     } else {
       console.error("Identifiants incorrects");
       alert("Identifiant ou mot de passe incorrect."); 
@@ -190,6 +202,7 @@ export default function App() {
     setUserProjects([]); 
     setSelectedProjectId(null);
     
+    // Nettoyer localStorage
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('dune-user');
       window.localStorage.removeItem('dune-userProjects');
@@ -201,7 +214,7 @@ export default function App() {
   // Fonction pour activer un projet
   const handleSelectProject = (projectId) => {
     setSelectedProjectId(projectId);
-    navigate(`/project/${projectId}/dashboard`); // Navigue vers le dashboard du projet
+    navigate(`/project/${projectId}/dashboard`); 
   };
 
   // Données CUD passées comme props
@@ -237,11 +250,12 @@ export default function App() {
                 currentUser={currentUser}
                 isDarkMode={isDarkMode}
                 setIsDarkMode={setIsDarkMode}
-                // NOUVEAU: Passer les fonctions CUD projet pour les admins
                 isAdmin={currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire'}
                 allProjects={allProjects}
                 setAllProjects={setAllProjects}
                 allUsers={allUsers}
+                // NOUVEAU: Passer setUserProjects pour mettre à jour la liste après création/modif
+                setUserProjects={setUserProjects} 
               />
             ) : (
               <Navigate to="/login" replace />
@@ -317,19 +331,17 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
       return;
     }
     // Si l'URL contient un projectId mais qu'il n'est pas dans les projets accessibles
-    if (projectId && !userProjects.some(p => p.id === projectId)) {
-      setSelectedProjectId(null); 
+    // OU si selectedProjectId est null (ex: après déconnexion/reconnexion sans choisir)
+    if (!projectId || (projectId && !userProjects.some(p => p.id === projectId)) || !selectedProjectId) {
+      // Vérifier si selectedProjectId est null avant de le mettre à null (éviter boucle infinie potentielle)
+      if (selectedProjectId !== null) {
+          setSelectedProjectId(null); 
+      }
       navigate('/select-project', { replace: true });
     // Si l'URL contient un projectId valide mais qu'il est différent de l'état actuel
     } else if (projectId && projectId !== selectedProjectId) {
       setSelectedProjectId(projectId); // Synchronise l'état
     } 
-    // Si l'URL ne contient PAS de projectId (cas improbable ici, mais sécurité)
-    else if (!projectId && selectedProjectId) {
-        // Retour à la sélection si l'état indique un projet mais l'URL non
-        setSelectedProjectId(null);
-        navigate('/select-project', { replace: true });
-    }
   }, [isAuthenticated, projectId, userProjects, navigate, selectedProjectId, setSelectedProjectId]);
 
   // Attend que selectedProjectId soit synchronisé avec projectId (ET qu'il soit valide)
@@ -351,19 +363,18 @@ const AdminLayoutWrapper = ({ children, currentUser }) => {
 
 
 // --- Page de Sélection de Projet ---
-// MODIFIÉ: Intègre la gestion de projets (CUD) pour les admins
+// MODIFIÉ: Ajout logique ouverture auto après création
 const ProjectSelectionPage = ({ 
   userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode,
-  isAdmin, allProjects, setAllProjects, allUsers // Props CUD
+  isAdmin, allProjects, setAllProjects, allUsers, setUserProjects
 }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   
-  // La liste affichée dépend toujours du rôle, même si les admins peuvent agir sur `allProjects`
   const projectsToDisplay = isAdmin ? allProjects : userProjects; 
   
-  const getStatusColor = (statut) => {
+  const getStatusColor = (statut) => { /* ... Identique ... */ 
     switch (statut) {
       case 'en étude': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'en exécution': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
@@ -372,43 +383,60 @@ const ProjectSelectionPage = ({
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
   };
-
-  const openModalToEdit = (project) => {
-    setEditingProject(project);
-    setIsModalOpen(true);
-  };
-
-  const openModalToCreate = () => {
-    setEditingProject(null);
-    setIsModalOpen(true);
-  };
-  
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingProject(null);
-  };
+  const openModalToEdit = (project) => { setEditingProject(project); setIsModalOpen(true); };
+  const openModalToCreate = () => { setEditingProject(null); setIsModalOpen(true); };
+  const closeModal = () => { setIsModalOpen(false); setEditingProject(null); };
 
   const handleSave = (projectData) => {
+    let savedProject = null;
     if (editingProject) {
-      // Modification
-      setAllProjects(allProjects.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
+      savedProject = { ...editingProject, ...projectData };
+      setAllProjects(allProjects.map(p => p.id === editingProject.id ? savedProject : p));
     } else {
-      // Création
-      const newProject = {
+      savedProject = {
         ...projectData,
         id: 'p' + Date.now(), 
         date_creation: new Date().toISOString().split('T')[0], 
       };
-      setAllProjects([...allProjects, newProject]);
+      setAllProjects([...allProjects, savedProject]);
     }
     closeModal();
-    // TODO: Mettre à jour `userProjects` si l'utilisateur actuel est affecté/désaffecté
+    
+    // Mettre à jour userProjects immédiatement si admin (voit tout) ou si user est assigné
+    if (isAdmin || (savedProject.assigned_users && savedProject.assigned_users.includes(currentUser.id))) {
+        // Recalculer userProjects basé sur allProjects mis à jour
+        let updatedUserProjects = [];
+         if (isAdmin) {
+           updatedUserProjects = allProjects.map(p => p.id === savedProject.id ? savedProject : p); // Inclut le nouveau/modifié
+           if (!editingProject) updatedUserProjects.push(savedProject); // Ajoute le nouveau s'il n'est pas déjà dans la map
+         } else {
+           updatedUserProjects = allProjects
+              .map(p => p.id === savedProject.id ? savedProject : p) // map pour inclure les modifs
+              .filter(p => p.assigned_users && p.assigned_users.includes(currentUser.id)); 
+           // Si création et l'user est assigné, s'assurer qu'il est dans la liste
+           if (!editingProject && savedProject.assigned_users.includes(currentUser.id) && !updatedUserProjects.some(p => p.id === savedProject.id)) {
+               updatedUserProjects.push(savedProject);
+           }
+         }
+         // Assurer que la liste contient le projet ajouté/modifié avant de la set
+         if (!updatedUserProjects.some(p => p.id === savedProject.id) && (isAdmin || savedProject.assigned_users.includes(currentUser.id))) {
+             updatedUserProjects.push(savedProject);
+         }
+
+        setUserProjects(updatedUserProjects);
+
+        // NOUVEAU: Si création et l'utilisateur courant est assigné, ouvrir le projet
+        if (!editingProject && savedProject.assigned_users && savedProject.assigned_users.includes(currentUser.id)) {
+           onSelectProject(savedProject.id); // Ouvre le projet nouvellement créé
+        }
+    }
   };
 
   const handleDelete = (projectId) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible et supprimera aussi ses blocs, lots et plans.")) {
-      setAllProjects(allProjects.filter(p => p.id !== projectId));
-      // TODO: Supprimer aussi les blocs, lots, plans associés dans les autres états
+      setAllProjects(prev => prev.filter(p => p.id !== projectId));
+      setUserProjects(prev => prev.filter(p => p.id !== projectId)); // Mettre à jour aussi userProjects
+      // TODO: Supprimer aussi les blocs, lots, plans associés dans les autres états (allBlocks, allLots, allPlans)
     }
   };
 
@@ -492,7 +520,7 @@ const ProjectSelectionPage = ({
                  <tr>
                    <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Projet</th>
                    <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Localisation</th>
-                   <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Responsable</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Assignés</th>
                    <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Statut</th>
                    <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                  </tr>
@@ -508,7 +536,8 @@ const ProjectSelectionPage = ({
                        {project.commune}, {project.wilaya}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
-                       {allUsers.find(u => u.id === project.id_responsable)?.username || 'N/A'}
+                       {/* MODIFIÉ: Affiche les utilisateurs assignés */}
+                       {project.assigned_users?.map(userId => allUsers.find(u => u.id === userId)?.username).join(', ') || 'N/A'}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap">
                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(project.statut)}`}>
@@ -548,7 +577,7 @@ const ProjectSelectionPage = ({
              project={editingProject} 
              onSave={handleSave} 
              onCancel={closeModal}
-             allUsers={allUsers}
+             allUsers={allUsers} // Passer tous les utilisateurs pour le dropdown
              currentUser={currentUser}
            />
          </Modal>
@@ -596,7 +625,8 @@ const MainLayout = ({
              <Route path="plans" element={<PlansPage {...pageProps} />} />
              <Route path="blocks" element={<BlocksPage {...pageProps} />} />
              <Route path="lots" element={<LotsPage {...pageProps} />} />
-             <Route path="revisions" element={<RevisionsPage {...pageProps} />} />
+             {/* SUPPRIMÉ: Route Révisions */}
+             {/* <Route path="revisions" element={<RevisionsPage {...pageProps} />} /> */}
              
              <Route index element={<Navigate to="dashboard" replace />} />
              <Route path="*" element={<Navigate to="dashboard" replace />} /> 
@@ -707,7 +737,7 @@ const LoginScreen = ({ onLogin, isDarkMode }) => {
 };
 
 // Barre latérale
-// ... (Identique)
+// MODIFIÉ: Suppression lien Révisions
 const Sidebar = ({ handleLogout, currentUser, projectId }) => { 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const location = useLocation(); 
@@ -744,9 +774,7 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
         <span className="ml-3 text-2xl font-bold text-gray-800 dark:text-gray-100">DUNE</span>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        {/* Toujours visible */}
         <NavItem icon={FolderKanban} label="Changer Projet" to="/select-project" /> 
-        {/* Liens projet */}
         <NavItem icon={LayoutDashboard} label="Tableau de bord" to={projectUrl('dashboard')} disabled={!projectId} />
         
         <div className="pt-4 mt-4 border-t dark:border-gray-700">
@@ -760,10 +788,10 @@ const Sidebar = ({ handleLogout, currentUser, projectId }) => {
             </>
           )}
           <NavItem icon={FileText} label="Plans" to={projectUrl('plans')} disabled={!projectId} />
-          <NavItem icon={FileDiff} label="Révisions" to={projectUrl('revisions')} disabled={!projectId} />
+          {/* SUPPRIMÉ: NavItem Révisions */}
+          {/* <NavItem icon={FileDiff} label="Révisions" to={projectUrl('revisions')} disabled={!projectId} /> */}
         </div>
 
-        {/* Section Admin (liens vers /admin/...) */}
         {isAdmin && (
           <div className="pt-4 mt-4 border-t dark:border-gray-700">
             <h3 className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">Administration</h3>
@@ -859,45 +887,37 @@ const PlaceholderPage = ({ title, icon }) => (
 
 // --- Composants de Page ---
 
-// Tableau de bord
-// ... (Identique à la version précédente)
-const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers, allBlocks, allLots, allProjects }) => {
+// MODIFIÉ: Tableau de bord 
+const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLots, allProjects }) => {
   const { projectId } = useParams();
-
-  // Stats Globales (pour le graphique barres et potentiellement des cartes globales)
-  const globalPlanCount = allPlans.length;
-  const globalProjectCount = allProjects.length;
-  const globalUserCount = allUsers.length;
 
   // Stats Spécifiques au projet sélectionné
   const projectPlans = useMemo(() => allPlans.filter(p => p.id_projet === projectId), [allPlans, projectId]);
-  const projectBlocksCount = useMemo(() => allBlocks.filter(b => b.id_projet === projectId).length, [allBlocks, projectId]);
-  const projectLotsCount = useMemo(() => allLots.filter(l => l.id_projet === projectId).length, [allLots, projectId]);
-  const projectRevisionsCount = useMemo(() => projectPlans.reduce((sum, plan) => sum + plan.historique.length, 0), [projectPlans]);
 
-  // Données pour le Pie Chart (Statuts de TOUS les plans)
-  const globalPieData = useMemo(() => {
-    const statuses = allPlans.reduce((acc, plan) => {
+  // Calcul des comptes par statut pour les cartes
+  const planStatusCounts = useMemo(() => {
+    return projectPlans.reduce((acc, plan) => {
       acc[plan.statut] = (acc[plan.statut] || 0) + 1;
       return acc;
-    }, {});
-    return [
-      { name: 'Approuvés CTC', value: statuses['Approuvé CTC'] || 0, color: '#10B981' },
-      { name: 'En cours', value: statuses["En cours d'approbation"] || 0, color: '#F59E0B' }, 
-      { name: 'Déposés MO', value: statuses['Déposé au MO'] || 0, color: '#3B82F6' },
-      { name: 'Obsolètes', value: statuses['Obsolète'] || 0, color: '#EF4444' },
-    ];
-  }, [allPlans]);
+    }, {
+      'Approuvé CTC': 0, 
+      "En cours d'approbation": 0, 
+      'Déposé au MO': 0, 
+      'Obsolète': 0
+    });
+  }, [projectPlans]);
 
-  // Données pour le Bar Chart (Activité par Projet - basé sur mockProjects pour l'instant)
-   const barData = useMemo(() => {
-     return allProjects.map(proj => ({
-       name: proj.abreviation || proj.nom.substring(0, 5), // Utilise l'abréviation ou début du nom
-       "Plans": allPlans.filter(p => p.id_projet === proj.id).length,
-       "Révisions": allPlans.filter(p => p.id_projet === proj.id)
-                          .reduce((sum, plan) => sum + plan.historique.length, 0)
-     }));
-   }, [allProjects, allPlans]);
+
+  // Données pour le Pie Chart (Statuts du projet sélectionné)
+  const projectPieData = useMemo(() => {
+    return [
+      { name: 'Approuvés CTC', value: planStatusCounts['Approuvé CTC'], color: '#10B981' },
+      { name: 'En cours', value: planStatusCounts["En cours d'approbation"], color: '#F59E0B' }, 
+      { name: 'Déposés MO', value: planStatusCounts['Déposé au MO'], color: '#3B82F6' },
+      { name: 'Obsolètes', value: planStatusCounts['Obsolète'], color: '#EF4444' },
+    ].filter(d => d.value > 0); // Filtrer les statuts à 0
+  }, [planStatusCounts]);
+
 
   // StatCard reste générique
   const StatCard = ({ title, value, icon, colorClass }) => (
@@ -912,120 +932,108 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers, allBlo
     </div>
   );
 
+  // Vérification si le projet est chargé
+  if (!selectedProject) {
+     return <div className="flex items-center justify-center h-full">Chargement des données du tableau de bord...</div>;
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord {selectedProject ? `: ${selectedProject.nom}` : '(Vue Globale)'}</h1>
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord : {selectedProject.nom}</h1>
       
-      {/* Affiche les stats spécifiques au projet SEULEMENT si un projet est sélectionné */}
-      {selectedProject && (
-        <>
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mt-4 mb-2">Statistiques du Projet Courant</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title="Plans du Projet" value={projectPlans.length} icon={FileText} colorClass="bg-green-500" />
-            <StatCard title="Blocs" value={projectBlocksCount} icon={Package} colorClass="bg-blue-500" />
-            <StatCard title="Lots" value={projectLotsCount} icon={Layers} colorClass="bg-indigo-500" />
-            <StatCard title="Révisions (Projet)" value={projectRevisionsCount} icon={FileDiff} colorClass="bg-yellow-500" />
-          </div>
-        </>
-      )}
+      {/* MODIFIÉ: Cartes de statuts des plans */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Plans Approuvés CTC" value={planStatusCounts['Approuvé CTC']} icon={CheckCircle} colorClass="bg-green-500" />
+        <StatCard title="Plans En Cours" value={planStatusCounts["En cours d'approbation"]} icon={Clock} colorClass="bg-yellow-500" />
+        <StatCard title="Plans Déposés MO" value={planStatusCounts['Déposé au MO']} icon={FileText} colorClass="bg-blue-500" />
+        <StatCard title="Plans Obsolètes" value={planStatusCounts['Obsolète']} icon={XCircle} colorClass="bg-red-500" />
+      </div>
 
-      {/* Affiche toujours les graphiques globaux */}
-      <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mt-8 mb-2">Vue d'Ensemble</h2>
+      {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Statut de Tous les Plans</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie data={globalPieData.filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                {globalPieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value, name) => [value, name]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          {/* MODIFIÉ: Graphique Pie spécifique au projet */}
+          <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Répartition des Statuts (Projet)</h3>
+          {projectPlans.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={projectPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                  {projectPieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name) => [value, name]} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400">Aucun plan pour ce projet.</div>
+          )}
         </div>
+         {/* MODIFIÉ: Graphique Barres supprimé pour l'instant */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Globale par Projet</h3>
-           <ResponsiveContainer width="100%" height={300}>
-             <BarChart data={barData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-               <XAxis dataKey="name" stroke={isDarkMode ? '#9CA3AF' : '#6B7280'} />
-               <YAxis stroke={isDarkMode ? '#9CA3AF' : '#6B7280'} />
-               <Tooltip 
-                 contentStyle={{ 
-                   backgroundColor: isDarkMode ? '#374151' : '#FFFFFF', 
-                   borderColor: isDarkMode ? '#4B5563' : '#E5E7EB' 
-                 }} 
-                 itemStyle={{ color: isDarkMode ? '#F3F4F6' : '#111827' }} 
-               />
-               <Legend />
-               <Bar dataKey="Plans" fill="#3B82F6" />
-               <Bar dataKey="Révisions" fill="#10B981" />
-             </BarChart>
-           </ResponsiveContainer>
+           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Récente (Prochainement)</h3>
+           <div className="flex items-center justify-center h-[300px] text-gray-400">
+              Historique des dernières actions...
+           </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Formulaire Projet
-// ... (Identique, avec génération d'abréviation)
+
+// Formulaire Projet (avec multi-assignation)
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
-  // MODIFIÉ: Initialise l'abréviation auto si nouveau projet
   const [abreviation, setAbreviation] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
   const [wilaya, setWilaya] = useState(project ? project.wilaya : '');
   const [daira, setDaira] = useState(project ? project.daira : '');
   const [commune, setCommune] = useState(project ? project.commune : '');
   const [adresse, setAdresse] = useState(project ? project.adresse : '');
   const [statut, setStatut] = useState(project ? project.statut : 'en étude');
-  const [idResponsable, setIdResponsable] = useState(project ? project.id_responsable : currentUser.id); 
+  // MODIFIÉ: Utilise assigned_users (array d'IDs)
+  const [assignedUsers, setAssignedUsers] = useState(project ? project.assigned_users || [] : [currentUser.id]); 
   
   const [dairas, setDairas] = useState([]);
   const [communes, setCommunes] = useState([]);
-  const [autoAbrev, setAutoAbrev] = useState(project ? project.abreviation : generateAbbreviation(nom)); // Stocke l'abréviation auto
+  const [autoAbrev, setAutoAbrev] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
   
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
-  const ingenieurs = allUsers.filter(u => u.role.includes('Ingénieur') || u.role.includes('Admin'));
+  // Sélectionne uniquement les ingénieurs et admins pour l'assignation
+  const assignableUsers = useMemo(() => allUsers.filter(u => u.role.includes('Ingénieur') || u.role.includes('Admin')), [allUsers]); 
 
-  // Logique pour màj auto de l'abréviation
-  useEffect(() => {
+  useEffect(() => { /* ... Logique abréviation identique ... */ 
     const newAbrev = generateAbbreviation(nom);
-    // Si l'abréviation actuelle est vide OU si elle correspondait à l'ancienne auto-générée
     if (!abreviation || abreviation === autoAbrev) {
       setAbreviation(newAbrev);
     }
-    setAutoAbrev(newAbrev); // Met à jour l'abréviation auto pour la prochaine comparaison
-  }, [nom]); // Déclenché seulement quand 'nom' change
+    setAutoAbrev(newAbrev);
+  }, [nom]);
 
-
-  useEffect(() => {
+  useEffect(() => { /* ... Logique Wilaya -> Daira identique ... */ 
     if (wilaya && algeriaLocations[wilaya]) {
       setDairas(Object.keys(algeriaLocations[wilaya]));
     } else {
       setDairas([]);
     }
-    // Si on n'édite pas OU si la daira du projet n'est pas dans la nouvelle liste
     if (!project || (project && project.wilaya !== wilaya)) {
         setDaira('');
     }
-  }, [wilaya, project]); // Ajout project aux dépendances
+  }, [wilaya, project]);
 
-  useEffect(() => {
+  useEffect(() => { /* ... Logique Daira -> Commune identique ... */ 
     if (wilaya && daira && algeriaLocations[wilaya] && algeriaLocations[wilaya][daira]) {
       setCommunes(algeriaLocations[wilaya][daira]);
     } else {
       setCommunes([]);
     }
-     // Si on n'édite pas OU si la commune du projet n'est pas dans la nouvelle liste
     if (!project || (project && (project.wilaya !== wilaya || project.daira !== daira))) {
         setCommune('');
     }
-  }, [wilaya, daira, project]); // Ajout project aux dépendances
+  }, [wilaya, daira, project]);
   
-  // Pré-remplir les listes si on édite
+  // Pré-remplir si édition
   useEffect(() => {
     if (project) {
        setNom(project.nom);
@@ -1033,99 +1041,123 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
        setWilaya(project.wilaya);
        setAdresse(project.adresse);
        setStatut(project.statut);
-       setIdResponsable(project.id_responsable);
-       // Déclenche les useEffect dépendants pour remplir Daira/Commune
+       setAssignedUsers(project.assigned_users || []); // Utilise assigned_users
        if (project.wilaya && algeriaLocations[project.wilaya]) {
          setDairas(Object.keys(algeriaLocations[project.wilaya]));
-         setDaira(project.daira); // Définit la daira APRÈS avoir peuplé la liste
+         setDaira(project.daira); 
        }
         if (project.wilaya && project.daira && algeriaLocations[project.wilaya] && algeriaLocations[project.wilaya][project.daira]) {
            setCommunes(algeriaLocations[project.wilaya][project.daira]);
-           setCommune(project.commune); // Définit la commune APRÈS avoir peuplé la liste
+           setCommune(project.commune); 
         }
-       setAutoAbrev(project.abreviation); // Pour que la modif manuelle soit gardée
+       setAutoAbrev(project.abreviation); 
     }
-  }, [project]); // Se déclenche si l'objet projet change
+  }, [project]); 
+
+  // MODIFIÉ: Gère la sélection multiple
+  const handleUserAssignmentChange = (userId) => {
+    setAssignedUsers(prev => 
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
       ...project,
       nom,
-      abreviation: abreviation.toUpperCase(), // Assure majuscule
-      wilaya, daira, commune, adresse, statut, id_responsable: idResponsable
+      abreviation: abreviation.toUpperCase(),
+      wilaya, daira, commune, adresse, statut, 
+      assigned_users: assignedUsers // Sauvegarde l'array d'IDs
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ... Champs Nom, Abréviation, Adresse, Localisation, Statut ... Identiques */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Projet</label>
+              <input type="text" value={nom} onChange={(e) => setNom(e.target.value)} required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation</label>
+              <input type="text" value={abreviation} onChange={(e) => setAbreviation(e.target.value.toUpperCase())} required maxLength="4"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 uppercase" />
+                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Générée automatiquement, modifiable (max 4 lettres).</p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Adresse ou description du site</label>
+            <input type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wilaya</label>
+              <select value={wilaya} onChange={(e) => setWilaya(e.target.value)} required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+                <option value="">-- Sélectionner --</option>
+                {Object.keys(algeriaLocations).map(w => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Daïra</label>
+              <select value={daira} onChange={(e) => setDaira(e.target.value)} required disabled={dairas.length === 0}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+                <option value="">-- Sélectionner --</option>
+                {dairas.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commune</label>
+              <select value={commune} onChange={(e) => setCommune(e.target.value)} required disabled={communes.length === 0}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
+                <option value="">-- Sélectionner --</option>
+                {communes.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut</label>
+              <select value={statut} onChange={(e) => setStatut(e.target.value)} required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
+                <option value="en étude">En étude</option>
+                <option value="en exécution">En exécution</option>
+                <option value="achevé">Achevé</option>
+                <option value="suspendu">Suspendu</option>
+              </select>
+          </div>
+      
+      {/* MODIFIÉ: Champ Assignation Multiple */}
+      {isAdmin && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Projet</label>
-          <input type="text" value={nom} onChange={(e) => setNom(e.target.value)} required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Utilisateurs Assignés</label>
+          <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border dark:border-gray-600 rounded-md p-2">
+            {assignableUsers.map(user => (
+              <div key={user.id} className="flex items-center">
+                <input
+                  id={`user-${user.id}`}
+                  type="checkbox"
+                  checked={assignedUsers.includes(user.id)}
+                  onChange={() => handleUserAssignmentChange(user.id)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor={`user-${user.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                  {user.username} <span className="text-xs text-gray-500">({user.role})</span>
+                </label>
+              </div>
+            ))}
+          </div>
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Admins ont accès à tout. Assignez les ingénieurs responsables.</p>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abréviation</label>
-          <input type="text" value={abreviation} onChange={(e) => setAbreviation(e.target.value.toUpperCase())} required maxLength="4"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 uppercase" />
-             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Générée automatiquement, modifiable (max 4 lettres).</p>
-        </div>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Adresse ou description du site</label>
-        <input type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)}
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wilaya</label>
-          <select value={wilaya} onChange={(e) => setWilaya(e.target.value)} required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-            <option value="">-- Sélectionner --</option>
-            {Object.keys(algeriaLocations).map(w => <option key={w} value={w}>{w}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Daïra</label>
-          <select value={daira} onChange={(e) => setDaira(e.target.value)} required disabled={dairas.length === 0}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
-            <option value="">-- Sélectionner --</option>
-            {dairas.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commune</label>
-          <select value={commune} onChange={(e) => setCommune(e.target.value)} required disabled={communes.length === 0}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
-            <option value="">-- Sélectionner --</option>
-            {communes.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut</label>
-          <select value={statut} onChange={(e) => setStatut(e.target.value)} required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-            <option value="en étude">En étude</option>
-            <option value="en exécution">En exécution</option>
-            <option value="achevé">Achevé</option>
-            <option value="suspendu">Suspendu</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Responsable du Projet</label>
-          <select value={idResponsable} onChange={(e) => setIdResponsable(e.target.value)} required disabled={!isAdmin}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
-             {/* Optionnel: Ajouter une option vide si nécessaire */}
-             {/* <option value="">-- Non Assigné --</option> */}
-            {ingenieurs.map(u => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
-          </select>
-           {!isAdmin && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Vous êtes assigné comme responsable.</p>}
-        </div>
-      </div>
+      )}
+      {!isAdmin && (
+         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Vous êtes automatiquement assigné comme responsable.</p>
+      )}
 
+      {/* ... Boutons Annuler/Enregistrer ... Identiques */}
       <div className="flex justify-end space-x-3 pt-4">
         <button type="button" onClick={onCancel}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -1141,166 +1173,51 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   );
 };
 
-// NOUVEAU: Formulaire Plan
-const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave, onCancel, currentUser }) => {
-    const [titre, setTitre] = useState(plan ? plan.titre : '');
-    const [idBloc, setIdBloc] = useState(plan ? plan.id_bloc : '');
-    const [idLot, setIdLot] = useState(plan ? plan.id_lot : '');
-    const [idSousLot, setIdSousLot] = useState(plan ? plan.id_souslot : '');
-    const [statut, setStatut] = useState(plan ? plan.statut : "En cours d'approbation");
-    const [fichier, setFichier] = useState(plan ? plan.fichier_pdf : null); // Simule le fichier
-    const [commentaire, setCommentaire] = useState(''); // Pour la première révision
+// NOUVEAU: Modal Historique Révisions
+const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
+  if (!isOpen || !plan) return null;
 
-    const projectBlocks = useMemo(() => allBlocks.filter(b => b.id_projet === selectedProject.id), [allBlocks, selectedProject.id]);
-    const projectLots = useMemo(() => allLots.filter(l => l.id_projet === selectedProject.id), [allLots, selectedProject.id]);
-    const selectedLot = useMemo(() => projectLots.find(l => l.id === idLot), [projectLots, idLot]);
-    const sousLotsDisponibles = useMemo(() => selectedLot?.sousLots || [], [selectedLot]);
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      
-      // 1. Calculer le prochain numéro
-      const plansInContext = allPlans.filter(p => 
-        p.id_projet === selectedProject.id && 
-        p.id_bloc === idBloc && 
-        p.id_lot === idLot
-      );
-      const nextNumero = plansInContext.length > 0 ? Math.max(...plansInContext.map(p => p.numero)) + 1 : 1;
-      
-      // 2. Formater le numéro (ex: 001)
-      const numeroStr = String(nextNumero).padStart(3, '0');
-      
-      // 3. Récupérer les abréviations
-      const projAbrev = selectedProject.abreviation || 'PROJ';
-      const blocAbrev = allBlocks.find(b => b.id === idBloc)?.abreviation || 'BLOC';
-      const lotAbrev = allLots.find(l => l.id === idLot)?.abreviation || 'LOT';
-      
-      // 4. Construire la référence initiale
-      const reference = `${projAbrev}-${blocAbrev}-${lotAbrev}-${numeroStr}-R00`;
-
-      // 5. Créer l'objet historique initial
-      const initialHistorique = [{
-          version: 'R00',
-          date: new Date().toISOString().split('T')[0],
-          utilisateur: currentUser.username,
-          commentaire: commentaire || 'Création initiale'
-      }];
-
-      // 6. Préparer les données à sauvegarder
-      const planData = {
-          ...plan, // Garde l'ID si modification
-          id_projet: selectedProject.id,
-          titre,
-          id_bloc: idBloc,
-          id_lot: idLot,
-          id_souslot: idSousLot || null, // Assure null si vide
-          statut,
-          fichier_pdf: fichier ? `sim-${fichier.name}` : (plan?.fichier_pdf || 'aucun'), // Simule nom fichier
-          reference,
-          numero: nextNumero,
-          revision: 0, // Commence à R00
-          date_creation: new Date().toISOString().split('T')[0],
-          id_createur: currentUser.id,
-          historique: initialHistorique,
-      };
-
-      onSave(planData);
-    };
-
-    // Simule la sélection de fichier
-    const handleFileChange = (e) => {
-        if (e.target.files.length > 0) {
-            setFichier(e.target.files[0]);
-        }
-    };
-
-    return (
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
-          <input type="text" value={titre} onChange={(e) => setTitre(e.target.value)} required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bloc</label>
-             <select value={idBloc} onChange={(e) => setIdBloc(e.target.value)} required
-               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-               <option value="">-- Sélectionner Bloc --</option>
-               {projectBlocks.map(b => <option key={b.id} value={b.id}>{b.nom} ({b.abreviation})</option>)}
-             </select>
-           </div>
-           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Lot</label>
-             <select value={idLot} onChange={(e) => {setIdLot(e.target.value); setIdSousLot('');}} required
-               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-               <option value="">-- Sélectionner Lot --</option>
-               {projectLots.map(l => <option key={l.id} value={l.id}>{l.nom} ({l.abreviation})</option>)}
-             </select>
-           </div>
-           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sous-Lot (Optionnel)</label>
-             <select value={idSousLot} onChange={(e) => setIdSousLot(e.target.value)} disabled={sousLotsDisponibles.length === 0}
-               className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 disabled:bg-gray-100 dark:disabled:bg-gray-600">
-               <option value="">-- Aucun --</option>
-               {sousLotsDisponibles.map(sl => <option key={sl.id} value={sl.id}>{sl.nom} ({sl.abreviation})</option>)}
-             </select>
-           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut Initial</label>
-          <select value={statut} onChange={(e) => setStatut(e.target.value)} required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
-            <option value="En cours d'approbation">En cours d'approbation</option>
-            <option value="Approuvé CTC">Approuvé CTC</option>
-            <option value="Déposé au MO">Déposé au MO</option>
-            <option value="Obsolète">Obsolète</option>
-          </select>
-        </div>
-
-        <div>
-           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fichier PDF (R00)</label>
-           <div className="mt-1 flex items-center space-x-2">
-              <label htmlFor="file-upload" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                 <Upload className="w-4 h-4 mr-2"/>
-                 Choisir un fichier
-              </label>
-              <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf"/>
-              {fichier && <span className="text-sm text-gray-500 truncate">{fichier.name}</span>}
-              {!fichier && plan?.fichier_pdf && <span className="text-sm text-gray-500 truncate">{plan.fichier_pdf}</span>}
-           </div>
-           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Simule l'upload. Le nom sera enregistré.</p>
-        </div>
-        
-         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire Initial (Optionnel)</label>
-          <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="2"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700"
-            placeholder="Ex: Version initiale pour approbation CTC"
-           />
-        </div>
-
-        <div className="flex justify-end space-x-3 pt-4">
-          <button type="button" onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-            Annuler
-          </button>
-          <button type="submit"
-            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700">
-            <Save className="w-4 h-4 mr-2" />
-            {plan ? "Mettre à jour" : "Créer Plan (R00)"} 
-          </button>
-        </div>
-      </form>
-    );
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Historique: ${plan.reference}`}>
+      <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+        {plan.historique.length > 0 ? (
+          plan.historique
+            .slice() // Crée une copie pour ne pas muter l'original
+            .sort((a, b) => new Date(b.date) - new Date(a.date)) // Trie du plus récent au plus ancien
+            .map((rev, index) => (
+              <div key={index} className="pb-4 border-b dark:border-gray-700 last:border-b-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-semibold text-lg text-blue-600 dark:text-blue-400">{rev.version}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{rev.date}</span>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">Par: <span className="font-medium">{rev.utilisateur || 'N/A'}</span></p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-2 rounded">{rev.commentaire || <span className="italic">Aucun commentaire</span>}</p>
+              </div>
+            ))
+        ) : (
+          <p className="text-center text-gray-500 dark:text-gray-400">Aucun historique de révision pour ce plan.</p>
+        )}
+      </div>
+       <div className="flex justify-end pt-4 mt-4 border-t dark:border-gray-700">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          Fermer
+        </button>
+      </div>
+    </Modal>
+  );
 };
 
-// Page Plans (avec CUD partiel)
-const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser }) => { 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState(null); // Pour modification future
+
+// Page Plans (avec CUD partiel et modal révisions)
+const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser, allUsers }) => { 
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false); // État pour modal révisions
+  const [selectedPlanForHistory, setSelectedPlanForHistory] = useState(null); // Plan dont on voit l'historique
+  const [editingPlan, setEditingPlan] = useState(null); 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const { projectId } = useParams(); 
 
@@ -1310,40 +1227,37 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
   
   const projectPlans = plans.filter(p => p.id_projet === projectId);
 
-  const openModalToCreate = () => {
-    setEditingPlan(null);
-    setIsModalOpen(true);
+  const openPlanModalToCreate = () => { setEditingPlan(null); setIsPlanModalOpen(true); };
+  const closePlanModal = () => { setIsPlanModalOpen(false); setEditingPlan(null); };
+  
+  // NOUVEAU: Fonctions pour modal révisions
+  const openRevisionModal = (plan) => {
+    setSelectedPlanForHistory(plan);
+    setIsRevisionModalOpen(true);
+  };
+  const closeRevisionModal = () => {
+    setIsRevisionModalOpen(false);
+    setSelectedPlanForHistory(null);
   };
   
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingPlan(null);
-  };
-  
-  const handleSave = (planData) => {
+  const handleSavePlan = (planData) => { /* ... Identique ... */ 
     if (editingPlan) {
-      // Modification (à implémenter)
       alert("Modification non implémentée");
       setPlans(plans.map(p => p.id === editingPlan.id ? { ...p, ...planData } : p));
     } else {
-      // Création
-      const newPlan = {
-        ...planData,
-        id: 'pl' + Date.now(), // ID unique simple
-      };
+      const newPlan = { ...planData, id: 'pl' + Date.now() };
       setPlans([...plans, newPlan]);
     }
-    closeModal();
+    closePlanModal();
   };
   
-   const handleDelete = (planId) => {
+   const handleDeletePlan = (planId) => { /* ... Identique ... */ 
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plan et tout son historique ?")) {
       setPlans(plans.filter(p => p.id !== planId));
     }
   };
 
-
-  const getStatusIcon = (statut) => {
+  const getStatusIcon = (statut) => { /* ... Identique ... */ 
     switch (statut) {
       case 'Approuvé CTC': return <CheckCircle className="w-5 h-5 text-green-500" />;
       case "En cours d'approbation": return <Clock className="w-5 h-5 text-yellow-500" />;
@@ -1358,12 +1272,9 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
         {isAdmin && (
-          <button 
-            onClick={openModalToCreate} // Ouvre la modal de création
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Nouveau Plan
+          <button onClick={openPlanModalToCreate}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+            <Plus className="w-5 h-5 mr-2" /> Nouveau Plan
           </button>
         )}
       </div>
@@ -1376,6 +1287,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
+             {/* ... Entêtes identiques ... */}
              <tr>
               <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Statut</th>
               <th className="px-6 py-3 text-left text-xs font-medium dark:text-gray-300 uppercase tracking-wider">Référence</th>
@@ -1388,6 +1300,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {projectPlans.map((plan) => (
               <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                {/* ... Cellules Statut, Référence, Titre, Infos, MàJ identiques ... */}
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center space-x-2">
                     {getStatusIcon(plan.statut)}
@@ -1404,37 +1317,37 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
                   <div><span className="font-semibold">Lot:</span> {lots.find(l => l.id === plan.id_lot)?.abreviation || 'N/A'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
-                  <div>{plan.historique[plan.historique.length - 1].date}</div>
-                  <div className="text-xs text-gray-500">par {plan.historique[plan.historique.length - 1].utilisateur}</div>
+                  <div>{plan.historique.length > 0 ? plan.historique[plan.historique.length - 1].date : plan.date_creation}</div>
+                  <div className="text-xs text-gray-500">
+                    {plan.historique.length > 0 ? `par ${plan.historique[plan.historique.length - 1].utilisateur}` : `par ${allUsers.find(u=>u.id === plan.id_createur)?.username || '?'}`}
+                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                  {/* MODIFIÉ: Bouton Voir Historique */}
+                  <button onClick={() => openRevisionModal(plan)} title="Voir Historique"
+                     className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                     <History className="w-4 h-4" /> 
+                  </button>
                   {isAdmin && (
                     <>
-                    <button onClick={() => alert("Modification de plan bientôt disponible.")} title="Modifier"
+                    <button onClick={() => alert("Modification bientôt disponible.")} title="Modifier"
                        className="p-1.5 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-gray-700">
                        <Edit2 className="w-4 h-4" />
                      </button>
-                    <button onClick={() => alert("Gestion des révisions bientôt disponible.")} title="Gérer Révisions"
+                    <button onClick={() => alert("Gestion révisions bientôt disponible.")} title="Ajouter Révision"
                        className="p-1.5 text-indigo-600 dark:text-indigo-400 rounded hover:bg-indigo-100 dark:hover:bg-gray-700">
                        <FileDiff className="w-4 h-4" />
                      </button>
-                     <button onClick={() => handleDelete(plan.id)} title="Supprimer Plan"
+                     <button onClick={() => handleDeletePlan(plan.id)} title="Supprimer"
                        className="p-1.5 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-gray-700">
                        <Trash2 className="w-4 h-4" />
                      </button>
                     </>
                   )}
-                  {!isAdmin && (
-                    <button onClick={() => alert("Affichage de l'historique...")} title="Voir Révisions"
-                      className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  )}
                   <button onClick={() => navigator.clipboard.writeText(plan.reference)} title="Copier Référence"
                     className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
                     <Copy className="w-4 h-4" />
                   </button>
-                   {/* Simuler lien fichier */}
                    <a href="#" onClick={(e) => { e.preventDefault(); alert(`Ouverture simulée de ${plan.fichier_pdf}`); }} title="Voir PDF"
                      className="p-1.5 inline-block text-green-600 dark:text-green-400 rounded hover:bg-green-100 dark:hover:bg-gray-700">
                      <ExternalLink className="w-4 h-4" />
@@ -1442,27 +1355,36 @@ const PlansPage = ({ selectedProject, plans, setPlans, blocks, lots, currentUser
                 </td>
               </tr>
             ))}
+             {projectPlans.length === 0 && (
+                <tr>
+                   <td colSpan="6" className="text-center py-10 text-gray-500 dark:text-gray-400">Aucun plan trouvé pour ce projet.</td>
+                </tr>
+             )}
           </tbody>
         </table>
       </div>
       
-       {/* Modal pour Créer/Modifier Plan */}
-       <Modal 
-         isOpen={isModalOpen} 
-         onClose={closeModal} 
-         title={editingPlan ? "Modifier le Plan" : "Créer un Nouveau Plan"}
-       >
+       {/* Modal Création/Modification Plan */}
+       <Modal isOpen={isPlanModalOpen} onClose={closePlanModal} title={editingPlan ? "Modifier le Plan" : "Créer Nouveau Plan"}>
          <PlanForm 
            plan={editingPlan} 
            selectedProject={selectedProject}
-           allBlocks={blocks} // Passe tous les blocs
-           allLots={lots}     // Passe tous les lots
-           allPlans={plans}   // Passe tous les plans (pour calcul numéro)
-           onSave={handleSave} 
-           onCancel={closeModal}
+           allBlocks={blocks} 
+           allLots={lots}     
+           allPlans={plans}   
+           onSave={handleSavePlan} 
+           onCancel={closePlanModal}
            currentUser={currentUser}
          />
        </Modal>
+       
+       {/* NOUVEAU: Modal Historique Révisions */}
+       <RevisionHistoryModal 
+         isOpen={isRevisionModalOpen} 
+         onClose={closeRevisionModal} 
+         plan={selectedPlanForHistory}
+         allUsers={allUsers} 
+       />
     </div>
   );
 };
@@ -1494,6 +1416,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 };
 
 // Formulaire Blocs (avec abréviation auto)
+// ... (Identique)
 const BlockForm = ({ block, onSave, onCancel }) => {
   const [nom, setNom] = useState(block ? block.nom : '');
   const [abreviation, setAbreviation] = useState(block ? block.abreviation : generateAbbreviation(nom));
@@ -1551,7 +1474,7 @@ const BlockForm = ({ block, onSave, onCancel }) => {
 
 
 // Page Blocs
-// ... (Identique, sauf vérification projectId)
+// ... (Identique)
 const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState(null); 
@@ -1641,6 +1564,11 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
                 )}
               </tr>
             ))}
+             {projectBlocks.length === 0 && (
+                <tr>
+                   <td colSpan={isAdmin ? 3 : 2} className="text-center py-10 text-gray-500 dark:text-gray-400">Aucun bloc trouvé pour ce projet.</td>
+                </tr>
+             )}
           </tbody>
         </table>
       </div>
@@ -1661,6 +1589,7 @@ const BlocksPage = ({ selectedProject, allBlocks, setAllBlocks, currentUser }) =
 };
 
 // Formulaire Lots (avec abréviation auto)
+// ... (Identique)
 const LotForm = ({ lot, onSave, onCancel }) => {
   const [nom, setNom] = useState(lot ? lot.nom : '');
   const [abreviation, setAbreviation] = useState(lot ? lot.abreviation : generateAbbreviation(nom));
@@ -1884,6 +1813,11 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
                 )}
               </tr>
             ))}
+             {projectLots.length === 0 && (
+                <tr>
+                   <td colSpan={isAdmin ? 4 : 3} className="text-center py-10 text-gray-500 dark:text-gray-400">Aucun lot trouvé pour ce projet.</td>
+                </tr>
+             )}
           </tbody>
         </table>
       </div>
@@ -1904,64 +1838,7 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
   );
 };
 
-// Page Révisions
-// ... (Identique, sauf vérification projectId)
-const RevisionsPage = ({ selectedProject, plans }) => {
-  const { projectId } = useParams();
-  
-  if (!selectedProject || selectedProject.id !== projectId) {
-     return <Navigate to="/select-project" replace />;
-  }
-  
-  const allRevisions = plans
-    .filter(p => p.id_projet === projectId)
-    .flatMap(plan => 
-      plan.historique.map(rev => ({
-        ...rev,
-        planReference: plan.reference,
-        planTitre: plan.titre,
-      }))
-    )
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Historique des Révisions pour : {selectedProject.nom}</h1>
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Plan</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Version</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Utilisateur</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Commentaire</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {allRevisions.map((rev, index) => (
-              <tr key={index}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.date}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{rev.planReference}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">{rev.planTitre}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{rev.version}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.utilisateur}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{rev.commentaire}</td>
-              </tr>
-            ))}
-             {allRevisions.length === 0 && (
-                <tr>
-                   <td colSpan="5" className="text-center py-10 text-gray-500 dark:text-gray-400">Aucune révision trouvée pour ce projet.</td>
-                </tr>
-             )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
+// SUPPRIMÉ: Page Révisions
 
 // Formulaire Utilisateur
 // ... (Identique)
@@ -2023,7 +1900,7 @@ const UserForm = ({ user, onSave, onCancel }) => {
 
 
 // Page Utilisateurs (avec CUD)
-// ... (Identique, sauf redirection si pas admin)
+// ... (Identique)
 const UsersPage = ({ currentUser, allUsers, setAllUsers }) => { 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -2127,6 +2004,11 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
                 </td>
               </tr>
             ))}
+             {allUsers.length === 0 && (
+                <tr>
+                   <td colSpan="3" className="text-center py-10 text-gray-500 dark:text-gray-400">Aucun utilisateur trouvé.</td>
+                </tr>
+             )}
           </tbody>
         </table>
       </div>
