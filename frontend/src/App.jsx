@@ -110,10 +110,8 @@ const loadInitialState = (key, defaultValue) => {
   }
   try {
     const item = window.localStorage.getItem(key);
-    // CORRECTION: S'assurer que les listes vides sont bien gérées
     if (item === null) return defaultValue; 
     const parsed = JSON.parse(item);
-    // Si la valeur par défaut est un array et que la valeur chargée n'en est pas un, retourner la valeur par défaut
     if (Array.isArray(defaultValue) && !Array.isArray(parsed)) {
         console.warn(`LocalStorage key "${key}" was not an array, falling back to default.`);
         return defaultValue;
@@ -121,7 +119,6 @@ const loadInitialState = (key, defaultValue) => {
     return parsed;
   } catch (error) {
     console.error(`Erreur lors du chargement de ${key} depuis localStorage`, error);
-    // En cas d'erreur de parsing, supprimer l'entrée invalide et retourner la valeur par défaut
     if (typeof window !== 'undefined') {
         try {
             window.localStorage.removeItem(key);
@@ -142,7 +139,6 @@ const useLocalStorageState = (key, defaultValue) => {
         window.localStorage.setItem(key, JSON.stringify(state));
       } catch (error) {
           console.error(`Erreur lors de la sauvegarde de ${key} dans localStorage`, error);
-          // Gérer potentiellement l'erreur (ex: notification, nettoyage du storage si plein)
       }
     }
   }, [key, state]);
@@ -160,7 +156,6 @@ export default function App() {
   const [userProjects, setUserProjects] = useLocalStorageState('dune-userProjects', []); 
   const [selectedProjectId, setSelectedProjectId] = useLocalStorageState('dune-selectedProjectId', null); 
   
-  // CORRECTION: Listes de données maîtresses utilisent localStorage
   const [allProjects, setAllProjects] = useLocalStorageState('dune-allProjects', defaultMockProjects);
   const [allBlocks, setAllBlocks] = useLocalStorageState('dune-allBlocks', defaultMockBlocksInit);
   const [allLots, setAllLots] = useLocalStorageState('dune-allLots', defaultMockLotsInit);
@@ -209,15 +204,10 @@ export default function App() {
     setUserProjects([]); 
     setSelectedProjectId(null);
     
-    // Nettoyer localStorage (gardé)
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('dune-user');
       window.localStorage.removeItem('dune-userProjects');
       window.localStorage.removeItem('dune-selectedProjectId');
-      // OPTIONNEL: Ne pas supprimer les données projets/blocs/etc. pour les retrouver à la prochaine connexion
-      // window.localStorage.removeItem('dune-allProjects'); 
-      // window.localStorage.removeItem('dune-allBlocks'); 
-      // ...
     }
     navigate('/login'); 
   };
@@ -605,9 +595,8 @@ const MainLayout = ({
   const { selectedProject } = appData; 
 
   // Prépare les props à passer aux pages
-  // CORRECTION: Assurer que TOUTES les props nécessaires sont passées
   const pageProps = { 
-      ...appData, // Inclut allUsers, allBlocks, allLots, allPlans et leurs setters
+      ...appData, 
       isDarkMode, 
       currentUser, 
       selectedProject, 
@@ -638,7 +627,6 @@ const MainLayout = ({
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-gray-100 dark:bg-gray-900">
           <Routes>
              <Route path="dashboard" element={<DashboardPage {...pageProps} />} />
-             {/* CORRECTION: Passer les props manquantes (blocks, lots, allUsers) à PlansPage */}
              <Route path="plans" element={<PlansPage {...pageProps} />} /> 
              <Route path="blocks" element={<BlocksPage {...pageProps} />} />
              <Route path="lots" element={<LotsPage {...pageProps} />} />
@@ -655,7 +643,6 @@ const MainLayout = ({
 
 // --- Layout Admin ---
 const AdminLayout = ({ currentUser, handleLogout, appData, isDarkMode, setIsDarkMode }) => {
-   // CORRECTION: Passer isDarkMode aux pageProps
    const pageProps = { ...appData, isDarkMode, currentUser }; 
    const navigate = useNavigate(); 
 
@@ -1192,6 +1179,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
 };
 
 // NOUVEAU: Modal Historique Révisions
+// ... (Identique)
 const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
   if (!isOpen || !plan) return null;
 
@@ -1246,10 +1234,11 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
      return <Navigate to="/select-project" replace />; 
   }
   
-  // Utiliser allPlans/allBlocks/allLots reçus en props
-  const projectPlans = plans.filter(p => p.id_projet === projectId);
-  const projectBlocks = allBlocks.filter(b => b.id_projet === projectId);
-  const projectLots = allLots.filter(l => l.id_projet === projectId);
+  // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
+  // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
+  const projectPlans = useMemo(() => Array.isArray(plans) ? plans.filter(p => p.id_projet === projectId) : [], [plans, projectId]);
+  const projectBlocks = useMemo(() => Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : [], [allBlocks, projectId]);
+  const projectLots = useMemo(() => Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : [], [allLots, projectId]);
 
 
   const openPlanModalToCreate = () => { setEditingPlan(null); setIsPlanModalOpen(true); };
@@ -1316,7 +1305,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {projectPlans.map((plan) => {
-               // CORRECTION: Utiliser projectBlocks/projectLots filtrés
+               // Utilisation des listes déjà filtrées pour le projet
                const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
                const lot = projectLots.find(l => l.id === plan.id_lot);
                const lastRevision = plan.historique && plan.historique.length > 0 ? plan.historique[plan.historique.length - 1] : null;
@@ -1340,7 +1329,6 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
                       <div><span className="font-semibold">Lot:</span> {lot?.abreviation || 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
-                      {/* CORRECTION: Vérifier existence de lastRevision */}
                       <div>{lastRevision ? lastRevision.date : plan.date_creation}</div>
                       <div className="text-xs text-gray-500">
                         {lastRevision ? `par ${lastRevision.utilisateur}` : `par ${creator?.username || '?'}`}
