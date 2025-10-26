@@ -70,7 +70,6 @@ const defaultMockPlansInit = [
 // --- Fin des Données de Simulation ---
 
 // --- Fonctions Utilitaires ---
-// ... (generateAbbreviation, useDarkMode, loadInitialState, useLocalStorageState identiques) ...
 const generateAbbreviation = (name) => {
   if (!name) return '';
   const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à']);
@@ -335,16 +334,21 @@ const MainLayoutWrapper = ({ children, isAuthenticated, selectedProjectId, userP
       navigate('/login', { replace: true });
       return;
     }
+    // Si l'URL contient un projectId mais qu'il n'est pas dans les projets accessibles
+    // OU si selectedProjectId est null (ex: après déconnexion/reconnexion sans choisir)
     if (!projectId || (projectId && !userProjects.some(p => p.id === projectId)) || !selectedProjectId) {
+      // Vérifier si selectedProjectId est null avant de le mettre à null (éviter boucle infinie potentielle)
       if (selectedProjectId !== null) {
           setSelectedProjectId(null); 
       }
       navigate('/select-project', { replace: true });
+    // Si l'URL contient un projectId valide mais qu'il est différent de l'état actuel
     } else if (projectId && projectId !== selectedProjectId) {
       setSelectedProjectId(projectId); // Synchronise l'état
     } 
   }, [isAuthenticated, projectId, userProjects, navigate, selectedProjectId, setSelectedProjectId]);
 
+  // Attend que selectedProjectId soit synchronisé avec projectId (ET qu'il soit valide)
   if (!selectedProjectId || selectedProjectId !== projectId) {
     return <div className="flex items-center justify-center h-screen">Chargement du projet...</div>;
   }
@@ -372,6 +376,7 @@ const ProjectSelectionPage = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   
+  // Utilise allProjects si admin, sinon userProjects
   const projectsToDisplay = isAdmin ? allProjects : userProjects; 
   
   const getStatusColor = (statut) => { /* ... Identique ... */ 
@@ -420,8 +425,8 @@ const ProjectSelectionPage = ({
          }
         setUserProjects(updatedUserProjects); // Met à jour la liste des projets accessibles
 
-        // Si création et l'utilisateur courant est assigné, ouvrir le projet
-        if (!editingProject && savedProject.assigned_users && savedProject.assigned_users.includes(currentUser.id)) {
+        // Si création et l'utilisateur courant est assigné OU si admin, ouvrir le projet
+        if (!editingProject && (isAdmin || (savedProject.assigned_users && savedProject.assigned_users.includes(currentUser.id)))) {
            onSelectProject(savedProject.id); 
         }
     }
@@ -429,8 +434,20 @@ const ProjectSelectionPage = ({
 
   const handleDelete = (projectId) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible et supprimera aussi ses blocs, lots et plans.")) {
-      setAllProjects(prev => prev.filter(p => p.id !== projectId));
-      setUserProjects(prev => prev.filter(p => p.id !== projectId)); 
+      // Mettre à jour allProjects
+      const updatedAllProjects = allProjects.filter(p => p.id !== projectId);
+      setAllProjects(updatedAllProjects); 
+      
+      // Recalculer userProjects basé sur la liste mise à jour
+      if (!isAdmin) {
+          setUserProjects(updatedUserProjects.filter(p => 
+              (p.assigned_users && p.assigned_users.includes(currentUser.id)) ||
+              (currentUser.role === 'Visiteur' && p.acces_visiteur === true) 
+           )); 
+      } else {
+          setUserProjects(updatedAllProjects); // Admins voient tout
+      }
+      
       // TODO: Supprimer aussi les blocs, lots, plans associés des autres états localStorage
       // setAllBlocks(prev => prev.filter(b => b.id_projet !== projectId));
       // setAllLots(prev => prev.filter(l => l.id_projet !== projectId));
@@ -534,7 +551,6 @@ const ProjectSelectionPage = ({
                        {project.commune}, {project.wilaya}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
-                       {/* MODIFIÉ: Affiche les utilisateurs assignés */}
                        {project.assigned_users?.map(userId => allUsers.find(u => u.id === userId)?.username).join(', ') || 'N/A'}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap">
@@ -575,7 +591,7 @@ const ProjectSelectionPage = ({
              project={editingProject} 
              onSave={handleSave} 
              onCancel={closeModal}
-             allUsers={allUsers} // Passer tous les utilisateurs pour le dropdown
+             allUsers={allUsers} 
              currentUser={currentUser}
            />
          </Modal>
@@ -988,7 +1004,7 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allBlocks, allLo
 
 
 // Formulaire Projet (avec multi-assignation)
-// ... (Identique)
+// CORRECTION: AssignerableUsers inclut TOUS les users SAUF gérant principal
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
   const [abreviation, setAbreviation] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
@@ -997,7 +1013,6 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [commune, setCommune] = useState(project ? project.commune : '');
   const [adresse, setAdresse] = useState(project ? project.adresse : '');
   const [statut, setStatut] = useState(project ? project.statut : 'en étude');
-  // MODIFIÉ: Utilise assigned_users (array d'IDs)
   const [assignedUsers, setAssignedUsers] = useState(project ? project.assigned_users || [] : [currentUser.id]); 
   
   const [dairas, setDairas] = useState([]);
@@ -1005,8 +1020,9 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [autoAbrev, setAutoAbrev] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
   
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
-  // Sélectionne uniquement les ingénieurs et admins pour l'assignation
-  const assignableUsers = useMemo(() => allUsers.filter(u => u.role.includes('Ingénieur') || u.role.includes('Admin')), [allUsers]); 
+  
+  // CORRECTION: assignableUsers inclut tout le monde sauf le gérant principal
+  const assignableUsers = useMemo(() => allUsers.filter(u => u.role !== 'Gérant principal'), [allUsers]); 
 
   useEffect(() => { /* ... Logique abréviation identique ... */ 
     const newAbrev = generateAbbreviation(nom);
@@ -1022,6 +1038,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setDairas([]);
     }
+    // Ne pas réinitialiser daira si on édite et que la wilaya est la même
     if (!project || (project && project.wilaya !== wilaya)) {
         setDaira('');
     }
@@ -1033,6 +1050,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setCommunes([]);
     }
+     // Ne pas réinitialiser commune si on édite et que la daira est la même
     if (!project || (project && (project.wilaya !== wilaya || project.daira !== daira))) {
         setCommune('');
     }
@@ -1056,10 +1074,15 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
            setCommune(project.commune); 
         }
        setAutoAbrev(project.abreviation); 
+    } else {
+        // Réinitialiser si création
+        setNom(''); setAbreviation(''); setWilaya(''); setDaira(''); setCommune(''); 
+        setAdresse(''); setStatut('en étude'); setAssignedUsers([currentUser.id]);
+        setDairas([]); setCommunes([]); setAutoAbrev('');
     }
-  }, [project]); 
+  }, [project, currentUser.id]); 
 
-  // MODIFIÉ: Gère la sélection multiple
+  // Gère la sélection multiple
   const handleUserAssignmentChange = (userId) => {
     setAssignedUsers(prev => 
       prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
@@ -1073,7 +1096,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
       nom,
       abreviation: abreviation.toUpperCase(),
       wilaya, daira, commune, adresse, statut, 
-      assigned_users: assignedUsers // Sauvegarde l'array d'IDs
+      assigned_users: assignedUsers 
     });
   };
 
@@ -1135,7 +1158,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
               </select>
           </div>
       
-      {/* MODIFIÉ: Champ Assignation Multiple */}
+      {/* CORRECTION: Champ Assignation Multiple (affiche TOUS les users sauf gérant principal) */}
       {isAdmin && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Utilisateurs Assignés</label>
@@ -1143,23 +1166,23 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
             {assignableUsers.map(user => (
               <div key={user.id} className="flex items-center">
                 <input
-                  id={`user-${user.id}`}
+                  id={`user-assign-${user.id}`} // ID unique pour le label
                   type="checkbox"
                   checked={assignedUsers.includes(user.id)}
                   onChange={() => handleUserAssignmentChange(user.id)}
                   className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <label htmlFor={`user-${user.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                <label htmlFor={`user-assign-${user.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                   {user.username} <span className="text-xs text-gray-500">({user.role})</span>
                 </label>
               </div>
             ))}
           </div>
-           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Admins ont accès à tout. Assignez les ingénieurs responsables.</p>
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Admins ont accès à tout. Assignez les ingénieurs/visiteurs.</p>
         </div>
       )}
       {!isAdmin && (
-         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Vous êtes automatiquement assigné comme responsable.</p>
+         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Vous serez automatiquement assigné comme responsable.</p>
       )}
 
       {/* ... Boutons Annuler/Enregistrer ... Identiques */}
@@ -1186,7 +1209,7 @@ const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Historique: ${plan.reference}`}>
       <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-        {plan.historique && plan.historique.length > 0 ? ( // CORRECTION: Ajout vérification plan.historique
+        {plan.historique && plan.historique.length > 0 ? ( 
           plan.historique
             .slice() 
             .sort((a, b) => new Date(b.date) - new Date(a.date)) 
@@ -1219,8 +1242,8 @@ const RevisionHistoryModal = ({ isOpen, onClose, plan, allUsers }) => {
 
 
 // Page Plans (avec CUD partiel et modal révisions)
-// CORRECTION: Assurer que allBlocks et allLots sont bien reçus et utilisés
-const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, currentUser, allUsers }) => { 
+// CORRECTION: Assurer que allBlocks et allLots sont bien des arrays avant de filtrer
+const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots, currentUser, allUsers }) => { 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false); 
   const [selectedPlanForHistory, setSelectedPlanForHistory] = useState(null); 
@@ -1236,7 +1259,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
   
   // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
   // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
-  const projectPlans = useMemo(() => Array.isArray(plans) ? plans.filter(p => p.id_projet === projectId) : [], [plans, projectId]);
+  const projectPlans = useMemo(() => Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : [], [allPlans, projectId]);
   const projectBlocks = useMemo(() => Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : [], [allBlocks, projectId]);
   const projectLots = useMemo(() => Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : [], [allLots, projectId]);
 
@@ -1250,17 +1273,20 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
   const handleSavePlan = (planData) => { 
     if (editingPlan) {
       alert("Modification non implémentée");
-      setPlans(plans.map(p => p.id === editingPlan.id ? { ...p, ...planData } : p));
+      // Mettre à jour allPlans ici (avec setAllPlans venant des props)
+      setAllPlans(prevPlans => prevPlans.map(p => p.id === editingPlan.id ? { ...p, ...planData } : p));
     } else {
       const newPlan = { ...planData, id: 'pl' + Date.now() };
-      setPlans([...plans, newPlan]);
+      // Mettre à jour allPlans ici
+      setAllPlans(prevPlans => [...prevPlans, newPlan]);
     }
     closePlanModal();
   };
   
    const handleDeletePlan = (planId) => { 
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plan et tout son historique ?")) {
-      setPlans(plans.filter(p => p.id !== planId));
+      // Mettre à jour allPlans ici
+      setAllPlans(prevPlans => prevPlans.filter(p => p.id !== planId));
     }
   };
 
@@ -1279,7 +1305,8 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
         {isAdmin && (
-          <button onClick={openPlanModalToCreate}
+          // CORRECTION: Assurer que le bouton ouvre bien le modal
+          <button onClick={openPlanModalToCreate} 
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
             <Plus className="w-5 h-5 mr-2" /> Nouveau Plan
           </button>
@@ -1309,7 +1336,8 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
                const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
                const lot = projectLots.find(l => l.id === plan.id_lot);
                const lastRevision = plan.historique && plan.historique.length > 0 ? plan.historique[plan.historique.length - 1] : null;
-               const creator = allUsers.find(u=> u.id === plan.id_createur);
+               // CORRECTION: S'assurer que allUsers existe avant de chercher le créateur
+               const creator = Array.isArray(allUsers) ? allUsers.find(u=> u.id === plan.id_createur) : null; 
 
                return (
                   <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -1383,7 +1411,7 @@ const PlansPage = ({ selectedProject, plans, setPlans, allBlocks, allLots, curre
            selectedProject={selectedProject}
            allBlocks={projectBlocks} // Passe les blocs filtrés du projet
            allLots={projectLots}     // Passe les lots filtrés du projet
-           allPlans={plans}   
+           allPlans={plans} // Passe TOUS les plans pour la génération de référence
            onSave={handleSavePlan} 
            onCancel={closePlanModal}
            currentUser={currentUser}
@@ -2060,9 +2088,9 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const [fichier, setFichier] = useState(plan ? plan.fichier_pdf : null); // Simule le fichier
     const [commentaire, setCommentaire] = useState(''); // Pour la première révision
 
-    // CORRECTION: Utiliser les listes filtrées passées en props
-    const projectBlocks = allBlocks; 
-    const projectLots = allLots;   
+    // Utilise les listes filtrées passées en props
+    const projectBlocks = allBlocks || []; // S'assurer que c'est un array
+    const projectLots = allLots || []; // S'assurer que c'est un array  
     const selectedLot = useMemo(() => projectLots.find(l => l.id === idLot), [projectLots, idLot]);
     const sousLotsDisponibles = useMemo(() => selectedLot?.sousLots || [], [selectedLot]);
 
@@ -2089,22 +2117,21 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const handleSubmit = (e) => {
       e.preventDefault();
       
-      // Validation de base
       if (!idBloc || !idLot) {
           alert("Veuillez sélectionner un Bloc et un Lot.");
           return;
       }
 
-      // --- Logique de génération de référence (identique) ---
-      const plansInContext = allPlans.filter(p => 
+      // --- Logique de génération de référence ---
+      // CORRECTION: Filtrer allPlans reçu en prop
+      const plansInContext = (Array.isArray(allPlans) ? allPlans : []).filter(p => 
         p.id_projet === selectedProject.id && 
         p.id_bloc === idBloc && 
         p.id_lot === idLot
       );
-      const nextNumero = plansInContext.length > 0 ? Math.max(...plansInContext.map(p => p.numero)) + 1 : 1;
+      const nextNumero = plansInContext.length > 0 ? Math.max(0, ...plansInContext.map(p => p.numero || 0)) + 1 : 1;
       const numeroStr = String(nextNumero).padStart(3, '0');
       const projAbrev = selectedProject.abreviation || 'PROJ';
-      // CORRECTION: Utiliser projectBlocks/projectLots pour trouver les abréviations
       const blocAbrev = projectBlocks.find(b => b.id === idBloc)?.abreviation || 'BLOC'; 
       const lotAbrev = projectLots.find(l => l.id === idLot)?.abreviation || 'LOT';
       const reference = `${projAbrev}-${blocAbrev}-${lotAbrev}-${numeroStr}-R00`;
@@ -2123,13 +2150,13 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
           id_lot: idLot,
           id_souslot: idSousLot || null, 
           statut,
-          fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : (fichier || 'aucun'), // Utilise le nom simulé si nouveau fichier, sinon garde l'ancien nom
+          fichier_pdf: fichier instanceof File ? `sim-${fichier.name}` : (fichier || 'aucun'), 
           reference,
           numero: nextNumero,
           revision: 0, 
-          date_creation: plan ? plan.date_creation : new Date().toISOString().split('T')[0], // Garde date création si modif
-          id_createur: plan ? plan.id_createur : currentUser.id, // Garde créateur si modif
-          historique: plan ? plan.historique : initialHistorique, // Garde historique si modif
+          date_creation: plan ? plan.date_creation : new Date().toISOString().split('T')[0], 
+          id_createur: plan ? plan.id_createur : currentUser.id, 
+          historique: plan ? plan.historique : initialHistorique, 
       };
 
       onSave(planData);
