@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 // Imports de React Router
 import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
-
+// AJOUTEZ CETTE LIGNE après les autres imports
+import { authAPI, projectsAPI, blocksAPI, lotsAPI, plansAPI } from './services/api';
 // Import des graphiques
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector 
@@ -228,33 +229,43 @@ export default function App() {
   }, [allProjects, selectedProjectId]);
  
   // Logique de login
-  const handleLogin = (username, password) => {
-    const user = allUsers.find(u => u.username === username && u.password === password);
-   
-    if (user) {
-      setCurrentUser(user); 
-      setIsAuthenticated(true);
+  const handleLogin = async (username, password) => {
+  try {
+    // Appel à l'API
+    const data = await authAPI.login(username, password);
+    
+    const user = data.user;
+    const token = data.token;
+    
+    // Sauvegarder le token
+    localStorage.setItem('dune-token', token);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
 
-      let filteredProjects = [];
-      const currentProjects = Array.isArray(allProjects) ? allProjects : []; // Assurer array
-      if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
-        filteredProjects = currentProjects; 
-      } else {
-        filteredProjects = currentProjects.filter(p => 
-          (p.assigned_users && p.assigned_users.includes(user.id)) || 
-          (user.role === 'Visiteur' && p.acces_visiteur === true)
-        ); 
-      }
-     
-      setUserProjects(filteredProjects);
-      setSelectedProjectId(null); 
-     
-      navigate('/select-project'); 
+    // Charger les projets depuis l'API
+    const projects = await projectsAPI.getAll();
+    setAllProjects(projects);
+    
+    let filteredProjects = [];
+    if (user.role === 'Gérant principal' || user.role === 'Administrateur secondaire') {
+      filteredProjects = projects;
     } else {
-      console.error("Identifiants incorrects");
-      alert("Identifiant ou mot de passe incorrect."); 
+      filteredProjects = projects.filter(p => 
+        (p.assigned_users && p.assigned_users.includes(user.id)) || 
+        (user.role === 'Visiteur' && p.acces_visiteur === true)
+      );
     }
-  };
+    
+    setUserProjects(filteredProjects);
+    setSelectedProjectId(null);
+    
+    navigate('/select-project');
+  } catch (error) {
+    console.error("Erreur de connexion:", error);
+    alert(error.response?.data?.error || "Identifiants incorrects");
+  }
+};
+
 
   // Déconnexion
   const handleLogout = () => {
