@@ -1556,6 +1556,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
     if (!searchTerm) return projectPlansBase;
     const lowerSearchTerm = searchTerm.toLowerCase();
     return projectPlansBase.filter(plan => {
+      // CORRECTION: S'assurer que bloc et lot existent avant d'accéder à abreviation
       const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
       const lot = projectLots.find(l => l.id === plan.id_lot);
       return (
@@ -1599,7 +1600,9 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
    const handleSaveRevision = (revisionData) => {
       setAllPlans(prevPlans => prevPlans.map(p => {
           if (p.id === planToRevise.id) {
-              const nextRevisionNum = p.revision + 1;
+              // CORRECTION: Assurer que revision est un nombre avant d'incrémenter
+              const currentRevision = typeof p.revision === 'number' ? p.revision : 0;
+              const nextRevisionNum = currentRevision + 1;
               const nextRevisionStr = String(nextRevisionNum).padStart(2, '0');
               const baseReference = p.reference.substring(0, p.reference.lastIndexOf('-R') + 2); 
               const newReference = `${baseReference}${nextRevisionStr}`;
@@ -1609,12 +1612,14 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                   utilisateur: currentUser.username,
                   commentaire: revisionData.commentaire || 'Nouvelle révision'
               };
+              // CORRECTION: S'assurer que historique est un array
+              const currentHistorique = Array.isArray(p.historique) ? p.historique : [];
               return {
                   ...p,
                   reference: newReference,
                   revision: nextRevisionNum,
                   fichier_pdf: revisionData.fichier_pdf, 
-                  historique: [...p.historique, newHistoryEntry],
+                  historique: [...currentHistorique, newHistoryEntry],
                   statut: "En cours d'approbation" 
               };
           }
@@ -1637,10 +1642,8 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   const handlePdfLinkClick = (e, plan) => {
       if (plan.fichier_pdf && !plan.fichier_pdf.startsWith('http')) {
           e.preventDefault();
-          // Message plus informatif pour les fichiers locaux simulés
           alert(`Ceci est une simulation de fichier local: ${plan.fichier_pdf}\n\nDans la version réelle, ce fichier serait ouvert ou téléchargé.`);
       }
-      // Si c'est un lien http, le comportement par défaut (target="_blank") fonctionnera
   };
 
   return (
@@ -1666,7 +1669,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
             className="w-full pl-10 pr-4 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
-         {/* NOUVEAU: onClick ajouté */}
          <button onClick={() => alert("Fonctionnalité d'exportation PDF bientôt disponible.")} className="flex items-center px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700">
            <Download className="w-4 h-4 mr-1"/> PDF
          </button>
@@ -1785,7 +1787,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
            selectedProject={selectedProject}
            allBlocks={projectBlocks} 
            allLots={projectLots}     
-           allPlans={allPlans} // Passer allPlans ici
+           allPlans={allPlans} // CORRECTION: Passer allPlans ici
            onSave={handleSavePlan} 
            onCancel={closePlanModal}
            currentUser={currentUser}
@@ -1817,6 +1819,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
 
 
 // Modal Générique (largeur augmentée)
+// ... (Identique)
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
@@ -2469,6 +2472,7 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
 };
 
 // --- Formulaire Plan ---
+// CORRECTION: Ajout de la logique pour désactiver "Approuvé CTC"
 const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave, onCancel, currentUser }) => {
     const [titre, setTitre] = useState(plan ? plan.titre : '');
     const [idBloc, setIdBloc] = useState(plan ? plan.id_bloc : '');
@@ -2483,8 +2487,19 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const projectLots = allLots || [];   
     const selectedLot = useMemo(() => projectLots.find(l => l.id === idLot), [projectLots, idLot]);
     const sousLotsDisponibles = useMemo(() => selectedLot?.sousLots || [], [selectedLot]);
+    
+    // NOUVEAU: Détermine si le lot sélectionné requiert l'approbation CTC
+    const requiresCtcApproval = useMemo(() => selectedLot?.ctc_approbation === true, [selectedLot]);
 
-    useEffect(() => { 
+    // NOUVEAU: Effet pour ajuster le statut si le lot change et n'est pas CTC
+    useEffect(() => {
+        if (idLot && !requiresCtcApproval && statut === 'Approuvé CTC') {
+            setStatut("En cours d'approbation"); // Réinitialise le statut
+        }
+    }, [idLot, requiresCtcApproval, statut]);
+
+
+    useEffect(() => { // Préremplissage édition
         if (plan) {
             setTitre(plan.titre);
             setIdBloc(plan.id_bloc);
@@ -2492,7 +2507,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
             setIdSousLot(plan.id_souslot);
             setStatut(plan.statut);
             setFichier(plan.fichier_pdf); 
-        } else { 
+        } else { // Réinitialisation création
              setTitre(''); setIdBloc(''); setIdLot(''); setIdSousLot('');
              setStatut("En cours d'approbation"); setFichier(null); setCommentaire('');
         }
@@ -2502,7 +2517,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const handleSubmit = (e) => {
       e.preventDefault();
       
-      if (plan) { // Modification (simplifiée pour titre, statut, fichier)
+      if (plan) { // Modification
            const planData = {
                ...plan,
                titre,
@@ -2516,7 +2531,6 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
             return;
           }
           // --- Génération référence ---
-          // CORRECTION: Assurer que allPlans est un array avant de filtrer
           const plansInContext = (Array.isArray(allPlans) ? allPlans : []).filter(p => 
             p.id_projet === selectedProject.id && 
             p.id_bloc === idBloc && 
@@ -2561,14 +2575,14 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
 
 
     return (
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
           <textarea value={titre} onChange={(e) => setTitre(e.target.value)} required rows="3"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
         </div>
         
-        {!plan && ( // Masquer sélection bloc/lot en modification pour éviter incohérence référence
+        {!plan && ( // Masquer sélection bloc/lot en modification
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bloc</label>
@@ -2606,17 +2620,26 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Statut</label>
+          {/* MODIFIÉ: Select pour le statut avec option désactivée */}
           <select value={statut} onChange={(e) => setStatut(e.target.value)} required
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700">
             <option value="En cours d'approbation">En cours d'approbation</option>
-            <option value="Approuvé CTC">Approuvé CTC</option>
+            {/* Désactive "Approuvé CTC" si le lot ne le requiert pas */}
+            <option value="Approuvé CTC" disabled={!requiresCtcApproval && !plan}> 
+              Approuvé CTC {!requiresCtcApproval && !plan ? '(Non applicable pour ce lot)' : ''}
+            </option>
             <option value="Déposé au MO">Déposé au MO</option>
             <option value="Obsolète">Obsolète</option>
           </select>
+           {!requiresCtcApproval && !plan && (
+               <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                   Note: Le lot sélectionné n'est pas soumis à approbation CTC.
+               </p>
+           )}
         </div>
 
-        {/* MODIFIÉ: Champ Fichier OU Lien */}
-        <div>
+        {/* ... Champ Fichier/Lien et Commentaire Initial ... Identiques */}
+         <div>
            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fichier PDF {plan ? `(Actuel: ${plan.fichier_pdf || 'aucun'})` : '(R00)'}</label>
            <div className="mt-1 flex items-center space-x-2">
               <label htmlFor="file-upload-plan" className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
@@ -2642,6 +2665,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
             </div>
          )}
 
+
         <div className="flex justify-end space-x-3 pt-4">
           <button type="button" onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -2658,6 +2682,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
 };
 
 // Formulaire Ajout Révision
+// ... (Identique)
 const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
     const [fichier, setFichier] = useState(null); 
     const [commentaire, setCommentaire] = useState('');
