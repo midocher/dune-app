@@ -4,7 +4,7 @@ import { Routes, Route, Link, useNavigate, Outlet, Navigate, useLocation, usePar
 
 // Import des graphiques
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector // Sector ajouté pour labels PieChart
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector 
 } from 'recharts';
 // Import des icônes
 import { 
@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Sun, Moon, LogOut, CheckCircle, XCircle, Clock, 
   FileDiff, Plus, Trash2, Edit2, Search, Filter, Home, Layers, Copy, Download,
   Package, Wrench, UserCog, AlertCircle, X, Save, PlusCircle, Trash, Eye, 
-  ArrowRight, ShieldCheck, ExternalLink, Upload, History, Info, CalendarDays // Nouvelles icônes
+  ArrowRight, ShieldCheck, ExternalLink, Upload, History, Info, CalendarDays // NOUVELLES ICÔNES
 } from 'lucide-react';
 
 // --- Données de Simulation (Valeurs par défaut pour localStorage) ---
@@ -42,7 +42,7 @@ const defaultMockUsers = [
   { id: 'u5', username: 'autre.ing', role: 'Ingénieur de suivi', password: 'user' }, 
 ];
 
-// MODIFIÉ: Ajout des champs date_demarrage, delai, unite_delai
+// MODIFIÉ: Ajout date_demarrage, delai, unite_delai
 const defaultMockProjects = [
   { id: 'p1', nom: "Projet Pilote DUNE", abreviation: "DUNE", wilaya: "16 - Alger", daira: "Alger Centre", commune: "Alger Centre", adresse: "15 Rue Didouche Mourad", lien_maps: "https://maps.google.com/...", assigned_users: ['u3', 'u5'], statut: "en étude", date_creation: "2024-10-01", acces_visiteur: true, date_demarrage: null, delai: null, unite_delai: 'jours' },
   { id: 'p2', nom: "Complexe Hôtelier Oran", abreviation: "CHO", wilaya: "31 - Oran", daira: "Oran", commune: "Oran", adresse: "Front de Mer", lien_maps: "", assigned_users: ['u3'], statut: "en exécution", date_creation: "2024-05-15", acces_visiteur: false, date_demarrage: "2024-06-01", delai: 18, unite_delai: 'mois' },
@@ -62,8 +62,9 @@ const defaultMockBlocksInit = [
   { id: 'b3', id_projet: 'p2', nom: 'Restaurant', abreviation: 'REST' },
 ];
 
+// MODIFIÉ: Ajout lien PDF externe pour test
 const defaultMockPlansInit = [ 
-  { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "https://docs.google.com/...", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] },
+  { id: 'pl1', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l1', id_souslot: 'sl1', reference: "DUNE-ADM-ARCH-001-R00", titre: "Plan de masse général", statut: "Approuvé CTC", numero: 1, revision: 0, date_creation: "2024-10-05", id_createur: 'u3', fichier_pdf: "https://unec.edu.az/application/uploads/2014/12/pdf-sample.pdf", historique: [{ version: 'R00', date: '2024-10-05', utilisateur: 'ing.suivi', commentaire: 'Version initiale pour approbation' }] }, // Exemple lien PDF
   { id: 'pl2', id_projet: 'p1', id_bloc: 'b1', id_lot: 'l2', id_souslot: null, reference: "DUNE-ADM-GCIV-002-R01", titre: "Plans de fondation", statut: "En cours d'approbation", numero: 2, revision: 1, date_creation: "2024-10-10", id_createur: 'u2', fichier_pdf: "sim-plan-b-r1.pdf", historique: [{ version: 'R00', date: '2024-10-08', utilisateur: 'admin.secondaire', commentaire: 'Première émission' }, { version: 'R01', date: '2024-10-10', utilisateur: 'admin.secondaire', commentaire: 'Mise à jour suite réunion' }] },
   { id: 'pl3', id_projet: 'p2', id_bloc: 'b3', id_lot: 'l4', id_souslot: null, reference: "CHO-REST-ARCH-001-R00", titre: "Plan de cuisine", statut: "Déposé au MO", numero: 1, revision: 0, date_creation: "2024-06-01", id_createur: 'u3', fichier_pdf: "sim-plan-c.pdf", historique: [{ version: 'R00', date: '2024-06-01', utilisateur: 'ing.suivi', commentaire: 'Version finale' }] },
   { id: 'pl4', id_projet: 'p1', id_bloc: 'b2', id_lot: 'l1', id_souslot: null, reference: "DUNE-HEB-ARCH-003-R00", titre: "Façade Ouest Hébergement\nEtage courant", statut: "En cours d'approbation", numero: 3, revision: 0, date_creation: "2024-10-20", id_createur: 'u5', fichier_pdf: "sim-plan-d.pdf", historique: [{ version: 'R00', date: '2024-10-20', utilisateur: 'autre.ing', commentaire: 'Première version' }] },
@@ -71,47 +72,64 @@ const defaultMockPlansInit = [
 // --- Fin des Données de Simulation ---
 
 // --- Fonctions Utilitaires ---
-// MODIFIÉ: Ajout de 'la', 'le', 'les', 'des', 'un', 'une', 'à' etc.
+// MODIFIÉ: Abréviation plus intelligente
 const generateAbbreviation = (name) => {
   if (!name) return '';
   name = name.trim(); 
-  // CORRECTION: Liste étendue de mots à ignorer
+  // Mots à ignorer (plus complet)
   const commonWords = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux', 'et', 'ou', 'à', 'en', 'sur', 'par', 'pour', "d'", "l'", "s'"]);
+  // Si le nom contient des espaces, essayer de prendre les initiales des mots significatifs
   if (name.includes(' ')) {
-    const words = name.split(/[\s'-]+/) // Sépare par espace, apostrophe, trait d'union
-                      .map(word => word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")) // Enlever accents
-                      .filter(word => word.length > 1 && !commonWords.has(word)); 
-    let abrev = words.map(word => word[0]).join('').toUpperCase();
-    return abrev.substring(0, 4);
+    const words = name.split(/[\s'-]+/) // Sépare par espace, apostrophe, tiret
+                      .map(word => word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")) // Retire accents
+                      .filter(word => word.length > 1 && !commonWords.has(word)); // Filtre mots courts/communs
+    
+    // Si plus de 4 mots significatifs, prendre les 4 premiers
+    // Sinon, prendre tous les mots significatifs
+    let abrev = (words.length > 4 ? words.slice(0, 4) : words)
+                  .map(word => word[0]).join('').toUpperCase();
+
+    // Si l'abréviation est trop courte (ex: "Le Phare" -> P), essayer de prendre plus de lettres du premier mot
+    if (abrev.length < 2 && words.length > 0) {
+       abrev = words[0].substring(0, Math.min(4, words[0].length)).toUpperCase();
+    }
+    // S'assurer qu'elle n'est jamais vide
+    if (!abrev && name.length > 0) {
+       abrev = name.substring(0, Math.min(4, name.length)).toUpperCase();
+    }
+    return abrev.substring(0, 4); 
   } else {
-    // Si un seul mot, prendre les 4 premières lettres
+    // Si pas d'espace, prendre les 4 premières lettres
     return name.substring(0, 4).toUpperCase();
   }
 };
 
-// Fonction pour calculer la date de fin
+// NOUVEAU: Fonction pour calculer la date de fin
 const calculateEndDate = (startDate, duration, unit) => {
   if (!startDate || !duration || isNaN(parseInt(duration))) return null;
   
-  const start = new Date(startDate);
-  if (isNaN(start.getTime())) return null; // Vérifie si la date de début est valide
+  try {
+    const start = new Date(startDate);
+    // Vérifier si la date est valide
+    if (isNaN(start.getTime())) return null; 
 
-  const durationNum = parseInt(duration);
-
-  if (unit === 'jours') {
-    start.setDate(start.getDate() + durationNum);
-  } else if (unit === 'mois') {
-    start.setMonth(start.getMonth() + durationNum);
-  } else {
-    return null; // Unité non reconnue
+    const durationNum = parseInt(duration);
+    if (unit === 'jours') {
+      start.setDate(start.getDate() + durationNum);
+    } else if (unit === 'mois') {
+      start.setMonth(start.getMonth() + durationNum);
+    } else {
+      return null; // Unité non supportée
+    }
+    // Formater la date en YYYY-MM-DD
+    return start.toISOString().split('T')[0];
+  } catch (e) {
+      console.error("Erreur calcul date fin:", e);
+      return null;
   }
-
-  // Formater la date en YYYY-MM-DD
-  return start.toISOString().split('T')[0];
 };
 
 
-// ... (useDarkMode, loadInitialState, useLocalStorageState identiques) ...
 const useDarkMode = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -143,10 +161,11 @@ const loadInitialState = (key, defaultValue) => {
     const item = window.localStorage.getItem(key);
     if (item === null) return defaultValue; 
     const parsed = JSON.parse(item);
+    // CORRECTION: S'assurer que les listes vides sont bien gérées et que le type correspond
     if (Array.isArray(defaultValue) && !Array.isArray(parsed)) {
         console.warn(`LocalStorage key "${key}" was not an array, falling back to default.`);
-        // CORRECTION: Retourner la valeur par défaut si le type ne correspond pas
-        return defaultValue; 
+        // Essayer de retourner la valeur par défaut plutôt qu'un array vide si defaultValue n'est pas un array
+        return Array.isArray(defaultValue) ? defaultValue : (parsed || defaultValue); 
     }
     return parsed;
   } catch (error) {
@@ -162,13 +181,19 @@ const loadInitialState = (key, defaultValue) => {
   }
 };
 
+// CORRECTION: S'assurer que la valeur par défaut est bien stockée si l'état initial est vide/incorrect
 const useLocalStorageState = (key, defaultValue) => {
   const [state, setState] = useState(() => loadInitialState(key, defaultValue));
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const valueToStore = (Array.isArray(defaultValue) && !Array.isArray(state)) ? defaultValue : state;
+        // Si l'état devient null/undefined mais qu'on attendait un array, stocker un array vide
+        let valueToStore = state;
+        if (Array.isArray(defaultValue) && !Array.isArray(state)) {
+            console.warn(`State for key "${key}" is not an array, storing empty array instead.`);
+            valueToStore = []; // Stocker un array vide pour éviter les erreurs futures au chargement
+        }
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       } catch (error) {
           console.error(`Erreur lors de la sauvegarde de ${key} dans localStorage`, error);
@@ -398,16 +423,16 @@ const AdminLayoutWrapper = ({ children, currentUser }) => {
 
 
 // --- Page de Sélection de Projet ---
-// MODIFIÉ: Ajout bouton Info Projet
+// ... (Identique) ...
 const ProjectSelectionPage = ({ 
   userProjects, onSelectProject, handleLogout, currentUser, isDarkMode, setIsDarkMode,
   isAdmin, allProjects, setAllProjects, allUsers, setUserProjects
 }) => {
   const [filter, setFilter] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false); // NOUVEAU: Modal Info Projet
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false); 
   const [editingProject, setEditingProject] = useState(null);
-  const [infoProject, setInfoProject] = useState(null); // NOUVEAU: Projet pour modal info
+  const [infoProject, setInfoProject] = useState(null); 
   
   const currentAllProjects = Array.isArray(allProjects) ? allProjects : [];
   const projectsToDisplay = isAdmin ? currentAllProjects : userProjects; 
@@ -425,7 +450,6 @@ const ProjectSelectionPage = ({
   const openProjectModalToCreate = () => { setEditingProject(null); setIsProjectModalOpen(true); };
   const closeProjectModal = () => { setIsProjectModalOpen(false); setEditingProject(null); };
 
-  // NOUVEAU: Fonctions pour modal info
   const openInfoModal = (project) => { setInfoProject(project); setIsInfoModalOpen(true); };
   const closeInfoModal = () => { setIsInfoModalOpen(false); setInfoProject(null); };
 
@@ -482,7 +506,15 @@ const ProjectSelectionPage = ({
       } else {
           setUserProjects(updatedAllProjects); 
       }
-      // TODO: Supprimer données associées
+      // TODO: Supprimer données associées (localStorage)
+       if (typeof window !== 'undefined') {
+          const blocks = JSON.parse(window.localStorage.getItem('dune-allBlocks') || '[]').filter(b => b.id_projet !== projectId);
+          const lots = JSON.parse(window.localStorage.getItem('dune-allLots') || '[]').filter(l => l.id_projet !== projectId);
+          const plans = JSON.parse(window.localStorage.getItem('dune-allPlans') || '[]').filter(pl => pl.id_projet !== projectId);
+          window.localStorage.setItem('dune-allBlocks', JSON.stringify(blocks));
+          window.localStorage.setItem('dune-allLots', JSON.stringify(lots));
+          window.localStorage.setItem('dune-allPlans', JSON.stringify(plans));
+       }
     }
   };
 
@@ -551,7 +583,7 @@ const ProjectSelectionPage = ({
              <option value="suspendu">Suspendu</option>
            </select>
            {isAdmin && (
-             <button onClick={() => alert("Exportation bientôt disponible.")}
+             <button onClick={() => alert("Fonctionnalité d'exportation bientôt disponible.")}
                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
                <Download className="w-5 h-5 mr-2" /> Exporter
              </button>
@@ -590,7 +622,7 @@ const ProjectSelectionPage = ({
                          {project.statut}
                        </span>
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> {/* Espace réduit */}
+                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> 
                        <button onClick={() => onSelectProject(project.id)} title="Ouvrir"
                          className="p-1.5 text-white bg-blue-600 rounded hover:bg-blue-700">
                          <Home className="w-4 h-4" />
@@ -658,8 +690,9 @@ const MainLayout = ({
   const { selectedProject } = appData; 
 
   // Prépare les props à passer aux pages
+  // CORRECTION: Assurer que TOUTES les données (allBlocks, allLots etc.) sont incluses dans pageProps
   const pageProps = { 
-      ...appData, 
+      ...appData, // Inclut allUsers, allBlocks, allLots, allPlans et leurs setters
       isDarkMode, 
       currentUser, 
       selectedProject, 
@@ -668,7 +701,8 @@ const MainLayout = ({
   };
           
   if (!selectedProject || selectedProject.id !== projectId) {
-      return <div className="flex items-center justify-center h-screen">Erreur: Projet invalide.</div>;
+      console.error("MainLayout: Erreur - selectedProject invalide ou non synchronisé.", {selectedProject, projectId});
+      return <Navigate to="/select-project" replace />; // Rediriger si incohérent
   }
 
   return (
@@ -693,6 +727,7 @@ const MainLayout = ({
              <Route path="plans" element={<PlansPage {...pageProps} />} /> 
              <Route path="blocks" element={<BlocksPage {...pageProps} />} />
              <Route path="lots" element={<LotsPage {...pageProps} />} />
+             {/* SUPPRIMÉ: Route Révisions */}
              
              <Route index element={<Navigate to="dashboard" replace />} />
              <Route path="*" element={<Navigate to="dashboard" replace />} /> 
@@ -952,15 +987,17 @@ const PlaceholderPage = ({ title, icon }) => (
 
 // --- Composants de Page ---
 
-// MODIFIÉ: Tableau de bord (avec PieChart pourcentages + activité récente)
-const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
+// Tableau de bord
+// ... (Identique)
+const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers, currentUser }) => { 
   const { projectId } = useParams();
+  const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
 
   // Stats Spécifiques au projet sélectionné
   const projectPlans = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
   const totalProjectPlans = projectPlans.length;
 
-  // Calcul des comptes par statut
+  // Calcul des comptes par statut pour les cartes
   const planStatusCounts = useMemo(() => {
     return projectPlans.reduce((acc, plan) => {
       acc[plan.statut] = (acc[plan.statut] || 0) + 1;
@@ -973,13 +1010,14 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
     });
   }, [projectPlans]);
 
+
   // Données pour le Pie Chart (Statuts du projet sélectionné avec pourcentages)
   const projectPieData = useMemo(() => {
     return [
-      { name: 'Approuvés CTC', value: planStatusCounts['Approuvé CTC'], color: '#10B981' }, // green-500
-      { name: 'En cours', value: planStatusCounts["En cours d'approbation"], color: '#F59E0B' }, // amber-500
-      { name: 'Déposés MO', value: planStatusCounts['Déposé au MO'], color: '#3B82F6' }, // blue-500
-      { name: 'Obsolètes', value: planStatusCounts['Obsolète'], color: '#EF4444' }, // red-500
+      { name: 'Approuvés CTC', value: planStatusCounts['Approuvé CTC'], color: '#10B981' }, 
+      { name: 'En cours', value: planStatusCounts["En cours d'approbation"], color: '#F59E0B' }, 
+      { name: 'Déposés MO', value: planStatusCounts['Déposé au MO'], color: '#3B82F6' },
+      { name: 'Obsolètes', value: planStatusCounts['Obsolète'], color: '#EF4444' },
     ].filter(d => d.value > 0); 
   }, [planStatusCounts]);
   
@@ -990,7 +1028,6 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
-    // Ne pas afficher le label si le pourcentage est trop petit
     if (percent < 0.05) return null; 
 
     return (
@@ -1003,9 +1040,9 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
   // Activité Récente (5 derniers plans ajoutés au projet)
   const recentPlans = useMemo(() => {
       return projectPlans
-          .slice() // Copie pour ne pas muter l'original
-          .sort((a, b) => new Date(b.date_creation) - new Date(a.date_creation)) // Trie par date décroissante
-          .slice(0, 5); // Prend les 5 plus récents
+          .slice() 
+          .sort((a, b) => new Date(b.date_creation) - new Date(a.date_creation)) 
+          .slice(0, 5); 
   }, [projectPlans]);
 
   // StatCard reste générique
@@ -1021,7 +1058,6 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
     </div>
   );
 
-  // Vérification si le projet est chargé
   if (!selectedProject) {
      return <div className="flex items-center justify-center h-full">Chargement des données du tableau de bord...</div>;
   }
@@ -1030,18 +1066,18 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tableau de bord : {selectedProject.nom}</h1>
       
-      {/* MODIFIÉ: Cartes de statuts des plans + Total */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"> {/* Grid 5 colonnes */}
-        <StatCard title="Total Plans" value={totalProjectPlans} icon={FileText} colorClass="bg-gray-500" />
-        <StatCard title="Approuvés CTC" value={planStatusCounts['Approuvé CTC']} icon={CheckCircle} colorClass="bg-green-500" />
-        <StatCard title="En Cours" value={planStatusCounts["En cours d'approbation"]} icon={Clock} colorClass="bg-yellow-500" />
-        <StatCard title="Déposés MO" value={planStatusCounts['Déposé au MO']} icon={ExternalLink} colorClass="bg-blue-500" />
-        <StatCard title="Obsolètes" value={planStatusCounts['Obsolète']} icon={XCircle} colorClass="bg-red-500" />
+      {/* MODIFIÉ: Cartes de statuts des plans */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Plans Approuvés CTC" value={planStatusCounts['Approuvé CTC']} icon={CheckCircle} colorClass="bg-green-500" />
+        <StatCard title="Plans En Cours" value={planStatusCounts["En cours d'approbation"]} icon={Clock} colorClass="bg-yellow-500" />
+        <StatCard title="Plans Déposés MO" value={planStatusCounts['Déposé au MO']} icon={ExternalLink} colorClass="bg-blue-500" />
+        <StatCard title="Plans Obsolètes" value={planStatusCounts['Obsolète']} icon={XCircle} colorClass="bg-red-500" />
       </div>
 
       {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+          {/* MODIFIÉ: Graphique Pie spécifique au projet */}
           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Répartition des Statuts (Projet)</h3>
           {totalProjectPlans > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -1051,9 +1087,9 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
                   dataKey="value" 
                   nameKey="name" 
                   cx="50%" cy="50%" 
-                  outerRadius={110} // Rayon légèrement augmenté
+                  outerRadius={110} 
                   labelLine={false}
-                  label={renderCustomizedLabel} // Utilise label customisé
+                  label={renderCustomizedLabel} 
                 >
                   {projectPieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1067,36 +1103,51 @@ const DashboardPage = ({ isDarkMode, selectedProject, allPlans, allUsers }) => {
             <div className="flex items-center justify-center h-[300px] text-gray-400">Aucun plan pour ce projet.</div>
           )}
         </div>
-         {/* NOUVEAU: Section Activité Récente */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-           <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Récente (Derniers Plans Ajoutés)</h3>
-           {recentPlans.length > 0 ? (
-               <ul className="space-y-3 max-h-[300px] overflow-y-auto">
-                   {recentPlans.map(plan => {
-                       const creator = Array.isArray(allUsers) ? allUsers.find(u => u.id === plan.id_createur)?.username : '?';
-                       return (
-                           <li key={plan.id} className="flex items-start space-x-3 text-sm pb-3 border-b dark:border-gray-700 last:border-b-0">
-                               <FileText className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0"/>
-                               <div>
-                                   <p className="font-medium dark:text-gray-100 truncate" title={plan.titre}>{plan.titre || <span className="italic">Sans titre</span>}</p>
-                                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                                       <span className="font-semibold">{plan.reference}</span> - Ajouté le {plan.date_creation} par {creator}
-                                   </p>
-                               </div>
-                           </li>
-                       );
-                   })}
-               </ul>
-           ) : (
-               <div className="flex items-center justify-center h-[300px] text-gray-400">Aucune activité récente.</div>
-           )}
-        </div>
+         {/* Activité Récente (visible seulement par admins) */}
+         {isAdmin && (
+           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+             <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Activité Récente (Derniers Plans Ajoutés)</h3>
+             {recentPlans.length > 0 ? (
+                 <ul className="space-y-3 max-h-[300px] overflow-y-auto">
+                     {recentPlans.map(plan => {
+                         const creator = Array.isArray(allUsers) ? allUsers.find(u => u.id === plan.id_createur)?.username : '?';
+                         return (
+                             <li key={plan.id} className="flex items-start space-x-3 text-sm pb-3 border-b dark:border-gray-700 last:border-b-0">
+                                 <FileText className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0"/>
+                                 <div>
+                                     <p className="font-medium dark:text-gray-100 truncate" title={plan.titre}>{plan.titre || <span className="italic">Sans titre</span>}</p>
+                                     <p className="text-xs text-gray-500 dark:text-gray-400">
+                                         <span className="font-semibold">{plan.reference}</span> - Ajouté le {plan.date_creation} par {creator}
+                                     </p>
+                                 </div>
+                             </li>
+                         );
+                     })}
+                 </ul>
+             ) : (
+                 <div className="flex items-center justify-center h-[300px] text-gray-400">Aucune activité récente.</div>
+             )}
+           </div>
+         )}
+         {/* Placeholder si non admin */}
+         {!isAdmin && (
+             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                 <h3 className="font-semibold mb-4 text-gray-900 dark:text-gray-100">Informations Projet</h3>
+                   <div className="flex flex-col items-center justify-center h-[300px] text-gray-400 space-y-2">
+                       <Building className="w-12 h-12"/>
+                       <p>Bienvenue sur le projet {selectedProject.nom}.</p>
+                       <p className="text-xs">Consultez les plans via le menu latéral.</p>
+                   </div>
+             </div>
+         )}
       </div>
     </div>
   );
 };
 
+
 // Formulaire Projet (avec dates exécution)
+// ... (Identique)
 const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   const [nom, setNom] = useState(project ? project.nom : '');
   const [abreviation, setAbreviation] = useState(project ? project.abreviation : generateAbbreviation(nom)); 
@@ -1136,6 +1187,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setDairas([]);
     }
+    // Ne pas réinitialiser daira si on édite et que la wilaya est la même
     if (!project || (project && project.wilaya !== wilaya)) {
         setDaira('');
     }
@@ -1147,6 +1199,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
     } else {
       setCommunes([]);
     }
+     // Ne pas réinitialiser commune si on édite et que la daira est la même
     if (!project || (project && (project.wilaya !== wilaya || project.daira !== daira))) {
         setCommune('');
     }
@@ -1210,7 +1263,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
       {/* ... Champs Nom, Abréviation, Adresse, Localisation ... Identiques */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1269,39 +1322,44 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
                 <option value="suspendu">Suspendu</option>
               </select>
              </div>
-             <div>
-               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date démarrage</label>
-               <input type="date" value={dateDemarrage} onChange={(e) => setDateDemarrage(e.target.value)} 
-                 required={statut === 'en exécution'} // Obligatoire si en exécution
-                 className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 ${statut === 'en exécution' ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
-             </div>
-             <div className="flex space-x-2">
-                 <div className="flex-1">
-                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Délai</label>
-                     <input type="number" value={delai} onChange={(e) => setDelai(e.target.value)} min="1" 
-                       required={statut === 'en exécution'} 
-                       className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 ${statut === 'en exécution' ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'}`} />
+             {/* NOUVEAU: Affichage conditionnel des champs de délai */}
+             {statut === 'en exécution' && (
+               <>
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date démarrage</label>
+                   <input type="date" value={dateDemarrage} onChange={(e) => setDateDemarrage(e.target.value)} 
+                     required={statut === 'en exécution'} 
+                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600`} />
                  </div>
-                 <div className="w-1/3">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Unité</label>
-                     <select value={uniteDelai} onChange={(e) => setUniteDelai(e.target.value)} required={statut === 'en exécution'}
-                       className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 ${statut === 'en exécution' ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'}`}>
-                       <option value="jours">Jours</option>
-                       <option value="mois">Mois</option>
-                     </select>
+                 <div className="flex space-x-2">
+                     <div className="flex-1">
+                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Délai</label>
+                         <input type="number" value={delai} onChange={(e) => setDelai(e.target.value)} min="1" 
+                           required={statut === 'en exécution'} 
+                           className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600`} />
+                     </div>
+                     <div className="w-1/3">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Unité</label>
+                         <select value={uniteDelai} onChange={(e) => setUniteDelai(e.target.value)} required={statut === 'en exécution'}
+                           className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600`}>
+                           <option value="jours">Jours</option>
+                           <option value="mois">Mois</option>
+                         </select>
+                     </div>
                  </div>
-             </div>
-              <div>
-                 <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Date fin (estimée)</label>
-                 <input type="date" value={dateFinCalculee || ''} readOnly disabled 
-                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-600 cursor-not-allowed" />
-             </div>
+                  <div>
+                     <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Date fin (estimée)</label>
+                     <input type="date" value={dateFinCalculee || ''} readOnly disabled 
+                       className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-600 cursor-not-allowed" />
+                 </div>
+               </>
+             )}
           </div>
           {statut === 'en exécution' && (!dateDemarrage || !delai) && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">Date démarrage et délai sont requis pour le statut 'en exécution'.</p>
           )}
       
-      {/* Assignation Multiple */}
+      {/* CORRECTION: Champ Assignation Multiple (affiche TOUS les users sauf gérant principal) */}
       {isAdmin && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Utilisateurs Assignés</label>
@@ -1309,7 +1367,7 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
             {assignableUsers.map(user => (
               <div key={user.id} className="flex items-center">
                 <input
-                  id={`user-assign-${user.id}`} 
+                  id={`user-assign-${user.id}`} // ID unique pour le label
                   type="checkbox"
                   checked={assignedUsers.includes(user.id)}
                   onChange={() => handleUserAssignmentChange(user.id)}
@@ -1324,9 +1382,18 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Admins ont accès à tout. Assignez les ingénieurs/visiteurs.</p>
         </div>
       )}
-      {!isAdmin && (
+      {!isAdmin && project && ( // Afficher les assignés en lecture seule si non admin ET en modification
+         <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Utilisateurs Assignés</label>
+             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {assignedUsers.map(uid => assignableUsers.find(u => u.id === uid)?.username).filter(Boolean).join(', ') || 'Aucun'}
+             </p>
+         </div>
+      )}
+      {!isAdmin && !project && ( // Afficher l'auto-assignation si non admin ET en création
          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Vous serez automatiquement assigné comme responsable.</p>
       )}
+
 
       {/* Boutons */}
       <div className="flex justify-end space-x-3 pt-4">
@@ -1344,20 +1411,21 @@ const ProjectForm = ({ project, onSave, onCancel, allUsers, currentUser }) => {
   );
 };
 
-// NOUVEAU: Modal Info Projet
+// Modal Info Projet (avec dates exécution)
 const ProjectInfoModal = ({ isOpen, onClose, project, allUsers }) => {
    if (!isOpen || !project) return null;
 
    const assignedUsernames = project.assigned_users
-       ?.map(userId => allUsers.find(u => u.id === userId)?.username)
-       .filter(Boolean) // Enlève les undefined si un user a été supprimé
+       // CORRECTION: S'assurer que allUsers est un array
+       ?.map(userId => (Array.isArray(allUsers) ? allUsers.find(u => u.id === userId)?.username : '?'))
+       .filter(Boolean) 
        .join(', ') || 'Aucun';
        
    const endDate = calculateEndDate(project.date_demarrage, project.delai, project.unite_delai);
 
    return (
      <Modal isOpen={isOpen} onClose={onClose} title={`Informations: ${project.nom}`}>
-       <div className="space-y-4 text-sm">
+       <div className="space-y-3 text-sm max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
          <p><strong>Abréviation:</strong> {project.abreviation}</p>
          <p><strong>Localisation:</strong> {project.commune}, {project.daira}, {project.wilaya}</p>
          <p><strong>Adresse:</strong> {project.adresse || 'N/A'}</p>
@@ -1365,15 +1433,16 @@ const ProjectInfoModal = ({ isOpen, onClose, project, allUsers }) => {
          <p><strong>Date Création:</strong> {project.date_creation}</p>
          <p><strong>Utilisateurs Assignés:</strong> {assignedUsernames}</p>
          {project.lien_maps && (
-            <p><strong>Lien Maps:</strong> <a href={project.lien_maps} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ouvrir</a></p>
+            <p><strong>Lien Maps:</strong> <a href={project.lien_maps} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ouvrir <ExternalLink className="w-3 h-3 inline"/></a></p>
          )}
          
-         {(project.statut === 'en exécution' || project.statut === 'achevé') && (
-            <div className="pt-4 mt-4 border-t dark:border-gray-600">
-               <h4 className="font-semibold mb-2">Délais d'Exécution</h4>
-               <p><strong>Date Démarrage:</strong> {project.date_demarrage || 'Non définie'}</p>
-               <p><strong>Délai:</strong> {project.delai ? `${project.delai} ${project.unite_delai}` : 'Non défini'}</p>
-               <p><strong>Date Fin (Estimée):</strong> {endDate || 'N/A'}</p>
+         {/* MODIFIÉ: Affiche section délais si date_demarrage existe */}
+         {project.date_demarrage && (
+            <div className="pt-3 mt-3 border-t dark:border-gray-600">
+               <h4 className="font-semibold mb-2 text-md">Délais d'Exécution</h4>
+               <p><CalendarDays className="w-4 h-4 inline mr-1 text-gray-500"/><strong>Date Démarrage:</strong> {project.date_demarrage}</p>
+               <p><Clock className="w-4 h-4 inline mr-1 text-gray-500"/><strong>Délai:</strong> {project.delai ? `${project.delai} ${project.unite_delai}` : 'Non défini'}</p>
+               <p><ShieldCheck className="w-4 h-4 inline mr-1 text-gray-500"/><strong>Date Fin (Estimée):</strong> {endDate || 'N/A'}</p>
             </div>
          )}
          
@@ -1389,7 +1458,8 @@ const ProjectInfoModal = ({ isOpen, onClose, project, allUsers }) => {
 };
 
 
-// NOUVEAU: Modal Info Plan (remplace RevisionHistoryModal)
+// Modal Info Plan (remplace RevisionHistoryModal)
+// ... (Identique)
 const PlanInfoModal = ({ isOpen, onClose, plan, allUsers, projectBlocks, projectLots }) => {
   if (!isOpen || !plan) return null;
 
@@ -1400,7 +1470,7 @@ const PlanInfoModal = ({ isOpen, onClose, plan, allUsers, projectBlocks, project
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Détails: ${plan.reference}`}>
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
          {/* Détails du Plan */}
          <div className="pb-4 border-b dark:border-gray-700">
              <h4 className="font-semibold mb-2 text-lg">Informations Générales</h4>
@@ -1457,31 +1527,31 @@ const PlanInfoModal = ({ isOpen, onClose, plan, allUsers, projectBlocks, project
 
 
 // Page Plans (avec CUD partiel et modals info/révision)
+// ... (Identique, sauf alertes pour exports)
 const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots, currentUser, allUsers }) => { 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-  // MODIFIÉ: Renommé pour clarté
   const [isPlanInfoModalOpen, setIsPlanInfoModalOpen] = useState(false); 
   const [selectedPlanForInfo, setSelectedPlanForInfo] = useState(null); 
   const [editingPlan, setEditingPlan] = useState(null); 
   const [isAddRevisionModalOpen, setIsAddRevisionModalOpen] = useState(false); 
   const [planToRevise, setPlanToRevise] = useState(null); 
-  const [searchTerm, setSearchTerm] = useState(''); // NOUVEAU: État pour le filtre
+  const [searchTerm, setSearchTerm] = useState(''); 
 
   const isAdmin = currentUser?.role === 'Gérant principal' || currentUser?.role === 'Administrateur secondaire';
   const { projectId } = useParams(); 
 
-  // Vérification sécurité/validité
+  // Vérification de sécurité et de validité
   if (!projectId || !selectedProject || selectedProject.id !== projectId) {
      console.error("PlansPage: ProjectId invalide ou selectedProject non synchronisé", {projectId, selectedProject});
      return <Navigate to="/select-project" replace />; 
   }
   
-  // Assurer que les listes sont des arrays
-  const projectPlansBase = useMemo(() => (Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : []), [allPlans, projectId]);
-  const projectBlocks = useMemo(() => (Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : []), [allBlocks, projectId]);
-  const projectLots = useMemo(() => (Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : []), [allLots, projectId]);
+  // Utiliser allPlans/allBlocks/allLots reçus en props et les filtrer
+  // CORRECTION: Vérifier que allBlocks/allLots sont bien des arrays avant de filtrer
+  const projectPlansBase = useMemo(() => Array.isArray(allPlans) ? allPlans.filter(p => p.id_projet === projectId) : [], [allPlans, projectId]);
+  const projectBlocks = useMemo(() => Array.isArray(allBlocks) ? allBlocks.filter(b => b.id_projet === projectId) : [], [allBlocks, projectId]);
+  const projectLots = useMemo(() => Array.isArray(allLots) ? allLots.filter(l => l.id_projet === projectId) : [], [allLots, projectId]);
 
-  // NOUVEAU: Filtrage des plans basé sur searchTerm
   const projectPlans = useMemo(() => {
     if (!searchTerm) return projectPlansBase;
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -1493,7 +1563,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
         plan.reference?.toLowerCase().includes(lowerSearchTerm) ||
         bloc?.abreviation?.toLowerCase().includes(lowerSearchTerm) ||
         lot?.abreviation?.toLowerCase().includes(lowerSearchTerm)
-        // Ajouter filtre sous-lot si nécessaire
       );
     });
   }, [projectPlansBase, searchTerm, projectBlocks, projectLots]);
@@ -1503,7 +1572,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   const openPlanModalToEdit = (plan) => { setEditingPlan(plan); setIsPlanModalOpen(true); }; 
   const closePlanModal = () => { setIsPlanModalOpen(false); setEditingPlan(null); };
   
-  // MODIFIÉ: Fonctions pour modal Info Plan
   const openPlanInfoModal = (plan) => { setSelectedPlanForInfo(plan); setIsPlanInfoModalOpen(true); };
   const closePlanInfoModal = () => { setIsPlanInfoModalOpen(false); setSelectedPlanForInfo(null); };
 
@@ -1512,8 +1580,10 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   
   const handleSavePlan = (planData) => { 
     if (editingPlan) {
+       // Modification (simplifiée pour titre, statut, fichier)
        setAllPlans(prevPlans => prevPlans.map(p => p.id === editingPlan.id ? { ...p, titre: planData.titre, statut: planData.statut, fichier_pdf: planData.fichier_pdf } : p));
     } else {
+      // Création
       const newPlan = { ...planData, id: 'pl' + Date.now() };
       setAllPlans(prevPlans => [...prevPlans, newPlan]);
     }
@@ -1562,12 +1632,23 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
       default: return <Clock className="w-5 h-5 text-gray-500" />;
     }
   };
+  
+  // Fonction pour gérer le clic sur le lien PDF/local
+  const handlePdfLinkClick = (e, plan) => {
+      if (plan.fichier_pdf && !plan.fichier_pdf.startsWith('http')) {
+          e.preventDefault();
+          // Message plus informatif pour les fichiers locaux simulés
+          alert(`Ceci est une simulation de fichier local: ${plan.fichier_pdf}\n\nDans la version réelle, ce fichier serait ouvert ou téléchargé.`);
+      }
+      // Si c'est un lien http, le comportement par défaut (target="_blank") fonctionnera
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Plans pour : {selectedProject.nom}</h1>
         {isAdmin && (
+          // CORRECTION: Assurer que le bouton ouvre bien le modal
           <button onClick={openPlanModalToCreate} 
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">
             <Plus className="w-5 h-5 mr-2" /> Nouveau Plan
@@ -1575,7 +1656,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
         )}
       </div>
 
-      {/* MODIFIÉ: Barre filtre/export */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex items-center space-x-4">
         <div className="flex-1 relative">
           <input 
@@ -1586,13 +1666,14 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
             className="w-full pl-10 pr-4 py-2 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
-         <button onClick={() => alert("Export PDF bientôt disponible")} className="flex items-center px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700">
+         {/* NOUVEAU: onClick ajouté */}
+         <button onClick={() => alert("Fonctionnalité d'exportation PDF bientôt disponible.")} className="flex items-center px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700">
            <Download className="w-4 h-4 mr-1"/> PDF
          </button>
-         <button onClick={() => alert("Export Excel bientôt disponible")} className="flex items-center px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700">
+         <button onClick={() => alert("Fonctionnalité d'exportation Excel bientôt disponible.")} className="flex items-center px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700">
            <Download className="w-4 h-4 mr-1"/> Excel
          </button>
-         <button onClick={() => alert("Export Word bientôt disponible")} className="flex items-center px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+         <button onClick={() => alert("Fonctionnalité d'exportation Word bientôt disponible.")} className="flex items-center px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
            <Download className="w-4 h-4 mr-1"/> Word
          </button>
       </div>
@@ -1611,12 +1692,14 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {projectPlans.map((plan) => {
+               // Utilisation des listes déjà filtrées pour le projet
                const bloc = projectBlocks.find(b => b.id === plan.id_bloc);
                const lot = projectLots.find(l => l.id === plan.id_lot);
                const lastRevision = plan.historique && plan.historique.length > 0 ? plan.historique[plan.historique.length - 1] : null;
+               // CORRECTION: S'assurer que allUsers existe avant de chercher le créateur
                const creator = Array.isArray(allUsers) ? allUsers.find(u=> u.id === plan.id_createur) : null; 
-               // NOUVEAU: Vérifier si le fichier est un lien
                const isLink = typeof plan.fichier_pdf === 'string' && plan.fichier_pdf.startsWith('http');
+               const hasFile = plan.fichier_pdf && plan.fichier_pdf !== 'aucun'; // Vérifie si un fichier/lien existe
 
                return (
                   <tr key={plan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -1628,14 +1711,15 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold dark:text-gray-100">{plan.reference}</div>
-                      {/* MODIFIÉ: Affichage du lien cliquable si c'est une URL */}
-                      {isLink ? (
-                         <a href={plan.fichier_pdf} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline truncate block" title={plan.fichier_pdf}>Lien Google Drive <ExternalLink className="w-3 h-3 inline"/></a>
-                      ) : (
-                         <div className="text-sm text-gray-500 dark:text-gray-400 truncate" title={plan.fichier_pdf}>{plan.fichier_pdf || 'Aucun fichier'}</div>
-                      )}
+                       {/* MODIFIÉ: Logique affichage fichier/lien */}
+                       {hasFile && isLink ? (
+                         <a href={plan.fichier_pdf} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline truncate block" title={plan.fichier_pdf}>Lien <ExternalLink className="w-3 h-3 inline"/></a>
+                       ) : hasFile ? (
+                           <span className="text-sm text-gray-500 dark:text-gray-400 truncate block" title={plan.fichier_pdf}>{plan.fichier_pdf}</span>
+                       ) : (
+                           <span className="text-sm text-gray-400 italic">Aucun fichier</span>
+                       )}
                     </td>
-                    {/* MODIFIÉ: Utilisation de whitespace-pre-wrap pour le titre */}
                     <td className="px-6 py-4 text-sm dark:text-gray-300 whitespace-pre-wrap max-w-xs">{plan.titre}</td> 
                     <td className="px-6 py-4 whitespace-nowrap text-sm dark:text-gray-400">
                       <div><span className="font-semibold">Bloc:</span> {bloc?.abreviation || 'N/A'}</div>
@@ -1648,7 +1732,6 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                        </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1"> 
-                      {/* MODIFIÉ: Utilisation du bouton Info */}
                       <button onClick={() => openPlanInfoModal(plan)} title="Voir Détails & Historique"
                          className="p-1.5 text-cyan-600 dark:text-cyan-400 rounded hover:bg-cyan-100 dark:hover:bg-gray-700">
                          <Info className="w-4 h-4" /> 
@@ -1673,13 +1756,13 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
                         className="p-1.5 text-gray-500 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
                         <Copy className="w-4 h-4" />
                       </button>
-                       {/* MODIFIÉ: Ouverture du lien si c'est une URL */}
+                       {/* MODIFIÉ: Gestion du clic sur fichier local/lien */}
                        <a href={isLink ? plan.fichier_pdf : "#"} 
                           target={isLink ? "_blank" : ""} 
                           rel={isLink ? "noopener noreferrer" : ""} 
-                          onClick={(e) => { if (!isLink) { e.preventDefault(); alert(`Ouverture simulée de ${plan.fichier_pdf}`); } }} 
-                          title="Voir PDF"
-                         className={`p-1.5 inline-block rounded ${isLink ? 'text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50'}`}>
+                          onClick={(e) => handlePdfLinkClick(e, plan)} 
+                          title={hasFile ? "Voir PDF" : "Aucun PDF"}
+                         className={`p-1.5 inline-block rounded ${hasFile ? 'text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50'}`}>
                          <ExternalLink className="w-4 h-4" />
                        </a>
                     </td>
@@ -1702,7 +1785,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
            selectedProject={selectedProject}
            allBlocks={projectBlocks} 
            allLots={projectLots}     
-           allPlans={allPlans} // CORRECTION: Passer allPlans ici
+           allPlans={allPlans} // Passer allPlans ici
            onSave={handleSavePlan} 
            onCancel={closePlanModal}
            currentUser={currentUser}
@@ -1715,7 +1798,7 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
          onClose={closePlanInfoModal} 
          plan={selectedPlanForInfo}
          allUsers={allUsers} 
-         projectBlocks={projectBlocks} // Passer les blocs/lots filtrés
+         projectBlocks={projectBlocks} 
          projectLots={projectLots}
        />
        
@@ -1732,14 +1815,15 @@ const PlansPage = ({ selectedProject, allPlans, setAllPlans, allBlocks, allLots,
   );
 };
 
-// Modal Générique
-// ... (Identique)
+
+// Modal Générique (largeur augmentée)
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      {/* MODIFIÉ: max-w-2xl */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"> 
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700 flex-shrink-0">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
@@ -1749,7 +1833,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
             <X className="w-6 h-6" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto"> {/* Ajout overflow */}
+        {/* MODIFIÉ: Suppression de la hauteur max interne, comptant sur celle du parent */}
+        <div className="p-6 overflow-y-auto"> 
           {children}
         </div>
       </div>
@@ -1998,7 +2083,7 @@ const LotForm = ({ lot, onSave, onCancel }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
       <div>
         <label htmlFor="lot-nom" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nom du Lot</label>
         <input type="text" id="lot-nom" value={nom} onChange={(e) => setNom(e.target.value)} required
@@ -2020,7 +2105,7 @@ const LotForm = ({ lot, onSave, onCancel }) => {
       <div className="space-y-2 pt-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sous-Lots</label>
         {sousLots.length > 0 && (
-          <div className="space-y-2 max-h-32 overflow-y-auto border dark:border-gray-600 rounded-md p-2">
+          <div className="space-y-2 max-h-40 overflow-y-auto border dark:border-gray-600 rounded-md p-2"> {/* Hauteur sous-lots augmentée */}
             {sousLots.map(sl => (
               <div key={sl.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
                 <span className="text-sm">{sl.nom} ({sl.abreviation})</span>
@@ -2192,6 +2277,8 @@ const LotsPage = ({ selectedProject, allLots, setAllLots, currentUser }) => {
     </div>
   );
 };
+
+// SUPPRIMÉ: Page Révisions
 
 // Formulaire Utilisateur
 // ... (Identique)
@@ -2382,7 +2469,6 @@ const UsersPage = ({ currentUser, allUsers, setAllUsers }) => {
 };
 
 // --- Formulaire Plan ---
-// CORRECTION: Transmettre allPlans pour la génération de référence
 const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave, onCancel, currentUser }) => {
     const [titre, setTitre] = useState(plan ? plan.titre : '');
     const [idBloc, setIdBloc] = useState(plan ? plan.id_bloc : '');
@@ -2392,6 +2478,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const [fichier, setFichier] = useState(plan ? plan.fichier_pdf : null); 
     const [commentaire, setCommentaire] = useState(''); 
 
+    // Utilise les listes filtrées passées en props
     const projectBlocks = allBlocks || []; 
     const projectLots = allLots || [];   
     const selectedLot = useMemo(() => projectLots.find(l => l.id === idLot), [projectLots, idLot]);
@@ -2415,7 +2502,7 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
     const handleSubmit = (e) => {
       e.preventDefault();
       
-      if (plan) { // Modification
+      if (plan) { // Modification (simplifiée pour titre, statut, fichier)
            const planData = {
                ...plan,
                titre,
@@ -2474,14 +2561,14 @@ const PlanForm = ({ plan, selectedProject, allBlocks, allLots, allPlans, onSave,
 
 
     return (
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Titre / Description</label>
           <textarea value={titre} onChange={(e) => setTitre(e.target.value)} required rows="3"
             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700" />
         </div>
         
-        {!plan && (
+        {!plan && ( // Masquer sélection bloc/lot en modification pour éviter incohérence référence
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bloc</label>
@@ -2602,7 +2689,7 @@ const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
     const nextRevisionStr = String(nextRevisionNum).padStart(2, '0');
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2"> {/* Hauteur modale augmentée */}
             <p className="text-sm text-gray-600 dark:text-gray-400">
                 Ajout révision <strong className="text-indigo-600 dark:text-indigo-400">R{nextRevisionStr}</strong> pour <strong className="dark:text-gray-100">{plan.reference.split('-R')[0]}</strong>.
             </p>
@@ -2619,6 +2706,7 @@ const RevisionForm = ({ plan, onSave, onCancel, currentUser }) => {
                </div>
                {fichier instanceof File && <p className="text-xs text-green-600 dark:text-green-400 mt-1">Fichier: {fichier.name}</p>}
                {typeof fichier === 'string' && fichier.startsWith('http') && <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Lien: {fichier}</p>}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Choisissez un fichier OU collez un lien.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Commentaire (Optionnel)</label>
